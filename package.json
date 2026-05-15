@@ -1,0 +1,39 @@
+{
+  "name": "telos-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "nodemon src/app.js",
+    "start": "node src/app.js",
+    "setup": "npm install && npx prisma generate && node scripts/setup-db.js",
+    "prisma": "prisma",
+    "migrate": "prisma migrate dev",
+    "studio": "prisma studio",
+    "seed": "node prisma/seed.js",
+    "seed:users": "node prisma/seed-users.js",
+    "seed:all": "node prisma/seed.js && node prisma/seed-users.js"
+  },
+  "prisma": {
+    "schema": "src/prisma/schema.prisma",
+    "seed": "node prisma/seed.js"
+  },
+  "dependencies": {
+    "@prisma/client": "^7.8.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "express-rate-limit": "^7.1.5",
+    "firebase-admin": "^10.3.0",
+    "helmet": "^7.1.0",
+    "node-cron": "^3.0.3",
+    "pg": "^8.11.0",
+    "resend": "^3.2.0",
+    "xlsx": "^0.18.5",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0",
+    "prisma": "^6.19.3"
+  }
+}
