@@ -1,24 +1,16 @@
 import { Router } from 'express'
 import { authenticate } from '../middleware/authenticate.js'
 import { authorize } from '../middleware/authorize.js'
-import { sendEmpty, sendSuccess } from '../utils/response.js'
+import { createGoal, deleteGoal, listGoals, updateGoal } from '../controllers/goals.controller.js'
 
 const router = Router()
 
-router.get('/', authenticate, authorize('EMPLOYEE', 'MANAGER', 'ADMIN'), (req, res) => {
-  return sendSuccess(res, [])
-})
+router.get('/', authenticate, authorize('EMPLOYEE', 'MANAGER', 'ADMIN'), listGoals)
 
-router.post('/', authenticate, authorize('EMPLOYEE', 'MANAGER', 'ADMIN'), (req, res) => {
-  return sendSuccess(res, { message: 'Create goal - TODO' }, 201)
-})
+router.post('/', authenticate, authorize('EMPLOYEE', 'MANAGER', 'ADMIN'), createGoal)
 
-router.patch('/:id', authenticate, authorize('EMPLOYEE', 'MANAGER', 'ADMIN'), (req, res) => {
-  return sendSuccess(res, { message: 'Update goal - TODO' })
-})
+router.patch('/:id', authenticate, authorize('EMPLOYEE', 'MANAGER', 'ADMIN'), updateGoal)
 
-router.delete('/:id', authenticate, authorize('EMPLOYEE', 'MANAGER', 'ADMIN'), (req, res) => {
-  return sendEmpty(res)
-})
+router.delete('/:id', authenticate, authorize('EMPLOYEE', 'MANAGER', 'ADMIN'), deleteGoal)
 
 export default router
