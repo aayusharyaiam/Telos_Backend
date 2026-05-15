@@ -1,24 +1,24 @@
 import { Router } from 'express'
 import { authenticate } from '../middleware/authenticate.js'
 import { authorize } from '../middleware/authorize.js'
-import { sendSuccess } from '../utils/response.js'
+import {
+  createSharedGoal,
+  getSharedGoalById,
+  listSharedGoalRecipients,
+  listSharedGoals,
+  updateSharedGoalAchievement,
+} from '../controllers/sharedGoals.controller.js'
 
 const router = Router()
 
-router.get('/', authenticate, authorize('MANAGER', 'ADMIN'), (req, res) => {
-  return sendSuccess(res, [])
-})
+router.get('/', authenticate, authorize('MANAGER', 'ADMIN'), listSharedGoals)
 
-router.post('/', authenticate, authorize('MANAGER', 'ADMIN'), (req, res) => {
-  return sendSuccess(res, { message: 'Create shared goal - TODO' }, 201)
-})
+router.get('/recipients', authenticate, authorize('MANAGER', 'ADMIN'), listSharedGoalRecipients)
 
-router.get('/:id', authenticate, authorize('MANAGER', 'ADMIN'), (req, res) => {
-  return sendSuccess(res, { id: req.params.id })
-})
+router.post('/', authenticate, authorize('MANAGER', 'ADMIN'), createSharedGoal)
 
-router.patch('/:id/achievement', authenticate, authorize('MANAGER', 'ADMIN'), (req, res) => {
-  return sendSuccess(res, { message: 'Update shared achievement - TODO' })
-})
+router.get('/:id', authenticate, authorize('MANAGER', 'ADMIN'), getSharedGoalById)
+
+router.patch('/:id/achievement', authenticate, authorize('MANAGER', 'ADMIN'), updateSharedGoalAchievement)
 
 export default router

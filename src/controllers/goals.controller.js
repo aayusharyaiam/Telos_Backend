@@ -132,6 +132,12 @@ export async function updateGoal(req, res, next) {
     if (goal.isLocked) throw new ForbiddenError('This goal sheet has been approved and is locked')
     ensureCanWriteGoal(req.user, goal.goalSheet)
 
+    if (goal.isShared && goal.goalSheet.userId === req.user.id) {
+      const fields = Object.keys(req.body)
+      const hasReadOnlyChange = fields.some((field) => field !== 'weightage')
+      if (hasReadOnlyChange) throw new ForbiddenError('Only weightage can be changed on shared goals')
+    }
+
     const data = normalizeGoalInput(req.body, true)
     const updated = await prisma.goal.update({
       where: { id: goal.id },
@@ -160,6 +166,7 @@ export async function deleteGoal(req, res, next) {
 
     if (!goal) throw new NotFoundError('Goal')
     if (goal.isLocked) throw new ForbiddenError('This goal sheet has been approved and is locked')
+    if (goal.isShared) throw new ForbiddenError('Shared goals cannot be deleted from an employee goal sheet')
     ensureCanWriteGoal(req.user, goal.goalSheet)
 
     await prisma.goal.delete({ where: { id: goal.id } })

@@ -1,32 +1,27 @@
 import { Router } from 'express'
 import { authenticate } from '../middleware/authenticate.js'
 import { authorize } from '../middleware/authorize.js'
-import { sendSuccess } from '../utils/response.js'
+import {
+  createCycle,
+  getActiveCycle,
+  getCycleWindows,
+  listCycles,
+  updateCycle,
+  updateCycleWindow,
+} from '../controllers/cycles.controller.js'
 
 const router = Router()
 
-router.get('/', authenticate, authorize('EMPLOYEE', 'MANAGER', 'ADMIN'), (req, res) => {
-  return sendSuccess(res, [])
-})
+router.get('/', authenticate, authorize('EMPLOYEE', 'MANAGER', 'ADMIN'), listCycles)
 
-router.get('/active', authenticate, authorize('EMPLOYEE', 'MANAGER', 'ADMIN'), (req, res) => {
-  return sendSuccess(res, null)
-})
+router.get('/active', authenticate, authorize('EMPLOYEE', 'MANAGER', 'ADMIN'), getActiveCycle)
 
-router.post('/', authenticate, authorize('ADMIN'), (req, res) => {
-  return sendSuccess(res, { message: 'Create cycle - TODO' }, 201)
-})
+router.post('/', authenticate, authorize('ADMIN'), createCycle)
 
-router.patch('/:id', authenticate, authorize('ADMIN'), (req, res) => {
-  return sendSuccess(res, { message: 'Update cycle - TODO' })
-})
+router.patch('/:id', authenticate, authorize('ADMIN'), updateCycle)
 
-router.get('/:id/windows', authenticate, authorize('EMPLOYEE', 'MANAGER', 'ADMIN'), (req, res) => {
-  return sendSuccess(res, [])
-})
+router.get('/:id/windows', authenticate, authorize('EMPLOYEE', 'MANAGER', 'ADMIN'), getCycleWindows)
 
-router.patch('/:id/windows/:phase', authenticate, authorize('ADMIN'), (req, res) => {
-  return sendSuccess(res, { message: 'Update window status - TODO' })
-})
+router.patch('/:id/windows/:phase', authenticate, authorize('ADMIN'), updateCycleWindow)
 
 export default router

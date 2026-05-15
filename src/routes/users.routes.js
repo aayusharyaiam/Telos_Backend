@@ -1,28 +1,24 @@
 import { Router } from 'express'
 import { authenticate } from '../middleware/authenticate.js'
 import { authorize } from '../middleware/authorize.js'
-import { sendSuccess } from '../utils/response.js'
+import {
+  createUser,
+  deactivateUser,
+  getUserReports,
+  listUsers,
+  updateUser,
+} from '../controllers/users.controller.js'
 
 const router = Router()
 
-router.get('/', authenticate, authorize('ADMIN'), (req, res) => {
-  return sendSuccess(res, [])
-})
+router.get('/', authenticate, authorize('ADMIN'), listUsers)
 
-router.post('/', authenticate, authorize('ADMIN'), (req, res) => {
-  return sendSuccess(res, { message: 'Create user - TODO' }, 201)
-})
+router.post('/', authenticate, authorize('ADMIN'), createUser)
 
-router.patch('/:id', authenticate, authorize('ADMIN'), (req, res) => {
-  return sendSuccess(res, { message: 'Update user - TODO' })
-})
+router.patch('/:id', authenticate, authorize('ADMIN'), updateUser)
 
-router.delete('/:id', authenticate, authorize('ADMIN'), (req, res) => {
-  return sendSuccess(res, { message: 'Deactivate user - TODO' })
-})
+router.delete('/:id', authenticate, authorize('ADMIN'), deactivateUser)
 
-router.get('/:id/reports', authenticate, authorize('MANAGER', 'ADMIN'), (req, res) => {
-  return sendSuccess(res, [])
-})
+router.get('/:id/reports', authenticate, authorize('MANAGER', 'ADMIN'), getUserReports)
 
 export default router
