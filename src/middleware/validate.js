@@ -9,7 +9,11 @@ export function validate(schema) {
     })
 
     if (!result.success) {
-      return next(new ValidationError('Validation error', result.error.issues))
+      const firstIssue = result.error.issues[0]
+      const path = firstIssue?.path?.join('.') || ''
+      const reason = firstIssue?.message || 'Invalid input'
+      const message = path ? `${path}: ${reason}` : reason
+      return next(new ValidationError(message, result.error.issues))
     }
 
     req.validated = result.data

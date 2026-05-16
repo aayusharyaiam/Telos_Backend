@@ -377,6 +377,45 @@ export async function unlockGoalSheet(req, res, next) {
   }
 }
 
+export async function getGoalSheetDiff(req, res, next) {
+  try {
+    const sheet = await findSheetOrThrow(req.params.id)
+    if (!canAccessSheet(req.user, sheet)) throw new ForbiddenError('Access denied')
+
+    const goalIds = sheet.goals.map((g) => g.id)
+    const logs = await prisma.auditLog.findMany({
+      where: {
+        goalId: { in: goalIds },
+        action: 'GOAL_EDITED_POST_LOCK',
+      },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        goalId: true,
+        fieldChanged: true,
+        oldValue: true,
+        newValue: true,
+        createdAt: true,
+        user: { select: { id: true, name: true } },
+      },
+    })
+
+    const diffs = logs.map((log) => {
+      const goal = sheet.goals.find((g) => g.id === log.goalId)
+      return {
+        ...log,
+        oldValue: JSON.parse(log.oldValue || '{}'),
+        newValue: JSON.parse(log.newValue || '{}'),
+        goalTitle: goal?.title || 'Unknown',
+      }
+    })
+
+    return sendSuccess(res, diffs)
+  } catch (err) {
+    return next(err)
+  }
+}
+
 export async function unlockGoal(req, res, next) {
   try {
     const goal = await prisma.goal.findUnique({

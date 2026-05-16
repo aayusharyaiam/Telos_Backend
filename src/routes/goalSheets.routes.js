@@ -6,6 +6,7 @@ import {
   approveGoalSheet,
   createGoalSheet,
   getGoalSheetById,
+  getGoalSheetDiff,
   getMyGoalSheet,
   getTeamGoalSheets,
   getTeamOverview,
@@ -27,6 +28,8 @@ router.get('/team', authenticate, authorize('MANAGER', 'ADMIN'), getTeamGoalShee
 router.get('/team-overview', authenticate, authorize('MANAGER', 'ADMIN'), getTeamOverview)
 
 router.get('/:id', authenticate, authorize('EMPLOYEE', 'MANAGER', 'ADMIN'), validate(goalSheetSchemas.getById), getGoalSheetById)
+
+router.get('/:id/diff', authenticate, authorize('MANAGER', 'ADMIN'), validate(goalSheetSchemas.diff), getGoalSheetDiff)
 
 router.patch('/:id/submit', authenticate, authorize('EMPLOYEE', 'MANAGER', 'ADMIN'), validate(goalSheetSchemas.submit), submitGoalSheet)
 

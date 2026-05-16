@@ -106,6 +106,11 @@ export const goalSheetSchemas = {
     params: goalIdParam,
     query: z.any(),
   }),
+  diff: z.object({
+    body: z.any(),
+    params: idParam,
+    query: z.any(),
+  }),
 }
 
 export const checkinSchemas = {

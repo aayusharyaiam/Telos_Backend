@@ -489,7 +489,7 @@ cd Telos_Frontend; npm run build
 
 Current status:
 - **Backend**: 14/14 unit tests passing (validation, score computation, report filters, completion summary).
-- **Frontend**: Production build passes (~958 KB, ~270 KB gzip; Vite chunk-size warning is non-blocking).
+- **Frontend**: Production build passes. All 18 pages are code-split via `React.lazy()` — initial JS down from 1,131 kB to 551 kB (51% reduction). Recharts (390 kB) is lazy-loaded on AnalyticsPage only. See `Telos_Frontend/README.md` for full breakdown.
 
 ## Manual Test Cases
 
@@ -528,7 +528,8 @@ See `FINAL_REPORT.md` for the complete test suite (20+ detailed test cases acros
 ## Known Engineering Notes
 
 - **14 unit tests** cover validation, score computation, report filters, and completion summaries. Integration and frontend test coverage should be expanded.
-- Frontend build passes with a Vite chunk-size warning (~958 KB) — dynamic imports could improve code-splitting.
+- **Frontend**: Code-splitting implemented via `React.lazy()` on all 18 routes. Initial bundle reduced 51% (1,131 kB → 551 kB). Recharts stays on AnalyticsPage only.
+- **Backend**: Prisma errors are transformed to user-friendly messages via the centralized error handler. Raw `P2002`-style codes never reach the client.
 - Prisma's `package.json#prisma` config emits a deprecation warning for Prisma 7. A future cleanup should move Prisma configuration into a dedicated config file.
 - Database was synced with `prisma db push`; if using Prisma Migrate in production, baseline the existing Supabase schema first.
 
