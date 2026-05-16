@@ -178,13 +178,17 @@ export async function upsertCheckin(req, res, next) {
     if (!STATUSES.has(goalStatus)) throw new ValidationError('Invalid goal status')
 
     const actualAchievement =
-      goal.isShared || req.body.actualAchievement === undefined || req.body.actualAchievement === ''
-        ? null
-        : Number(req.body.actualAchievement)
+      goal.isShared
+        ? goal.parentSharedGoal?.actualAchievement ?? null
+        : req.body.actualAchievement === undefined || req.body.actualAchievement === ''
+          ? null
+          : Number(req.body.actualAchievement)
     const actualDate =
-      goal.isShared || req.body.actualDate === undefined || req.body.actualDate === ''
-        ? null
-        : new Date(req.body.actualDate)
+      goal.isShared
+        ? goal.parentSharedGoal?.actualDate ?? null
+        : req.body.actualDate === undefined || req.body.actualDate === ''
+          ? null
+          : new Date(req.body.actualDate)
 
     if (actualAchievement !== null && !Number.isFinite(actualAchievement)) {
       throw new ValidationError('Actual achievement must be a number')
@@ -194,9 +198,9 @@ export async function upsertCheckin(req, res, next) {
     const progressScore = computeScore({
       uomType: goal.uomType,
       target: goal.target,
-      actual: goal.isShared ? goal.parentSharedGoal?.actualAchievement ?? null : actualAchievement,
+      actual: actualAchievement,
       targetDate: goal.targetDate,
-      actualDate: goal.isShared ? goal.parentSharedGoal?.actualDate ?? null : actualDate,
+      actualDate,
     })
 
     const checkin = await prisma.checkinRecord.upsert({
@@ -275,6 +279,7 @@ export async function getTeamSummary(req, res, next) {
   try {
     const quarter = normalizeQuarter(req.query.quarter)
     const cycle = await getActiveCycle()
+    const windowOpen = await isQuarterOpen(cycle.id, quarter)
     const employeeId = req.query.employeeId ? String(req.query.employeeId) : null
 
     const where = {
@@ -290,7 +295,7 @@ export async function getTeamSummary(req, res, next) {
       orderBy: { updatedAt: 'desc' },
     })
 
-    return sendSuccess(res, { sheets: sheets.map(applySharedGoalActuals), quarter })
+    return sendSuccess(res, { sheets: sheets.map(applySharedGoalActuals), quarter, windowOpen })
   } catch (err) {
     return next(err)
   }

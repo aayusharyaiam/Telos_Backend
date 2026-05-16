@@ -86,6 +86,7 @@ model User {
   auditLogs          AuditLog[]
   escalations        Escalation[]
   createdSharedGoals SharedGoal[] @relation("SharedGoalCreator")
+  primaryOwnedSharedGoals SharedGoal[] @relation("SharedGoalPrimaryOwner")
 
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
@@ -163,6 +164,7 @@ model Goal {
 model SharedGoal {
   id               String   @id @default(cuid())
   createdById      String
+  primaryOwnerId   String?
   thrustArea       String
   title            String
   description      String?
@@ -175,6 +177,7 @@ model SharedGoal {
   actualDate        DateTime?
 
   createdBy        User     @relation("SharedGoalCreator", fields: [createdById], references: [id])
+  primaryOwner     User?    @relation("SharedGoalPrimaryOwner", fields: [primaryOwnerId], references: [id])
   linkedGoals      Goal[]
 
   createdAt        DateTime @default(now())

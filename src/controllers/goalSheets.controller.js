@@ -1,5 +1,7 @@
 import prisma from '../config/prisma.js'
 import { createNotification } from '../services/notification.service.js'
+import { sendNotificationEmail } from '../services/email.service.js'
+import { validateSheetGoals } from '../services/goalValidation.service.js'
 import { ForbiddenError, NotFoundError, ValidationError } from '../utils/errors.js'
 import { sendSuccess } from '../utils/response.js'
 
@@ -13,6 +15,7 @@ function includeSheet() {
         email: true,
         role: true,
         reportingManagerId: true,
+        reportingManager: { select: { id: true, email: true, name: true } },
       },
     },
     goals: {
@@ -48,26 +51,6 @@ function canAccessSheet(reqUser, sheet) {
 function canManageSheet(reqUser, sheet) {
   if (reqUser.role === 'ADMIN') return true
   return sheet.user.reportingManagerId === reqUser.id
-}
-
-function validateSheetGoals(goals) {
-  if (!goals.length) {
-    throw new ValidationError('Please add at least one goal before submitting')
-  }
-
-  if (goals.length > 8) {
-    throw new ValidationError('Maximum 8 goals allowed per cycle')
-  }
-
-  const invalidWeight = goals.find((goal) => Number(goal.weightage) < 10)
-  if (invalidWeight) {
-    throw new ValidationError('Minimum weightage per goal is 10')
-  }
-
-  const total = goals.reduce((sum, goal) => sum + Number(goal.weightage || 0), 0)
-  if (Math.round(total * 100) / 100 !== 100) {
-    throw new ValidationError(`Total weightage must be exactly 100%. Currently: ${total}%`)
-  }
 }
 
 async function findSheetOrThrow(id) {
@@ -146,6 +129,58 @@ export async function getTeamGoalSheets(req, res, next) {
   }
 }
 
+export async function getTeamOverview(req, res, next) {
+  try {
+    const cycle = await getActiveCycle()
+    const userWhere =
+      req.user.role === 'ADMIN'
+        ? { role: { in: ['EMPLOYEE', 'MANAGER'] } }
+        : { reportingManagerId: req.user.id }
+
+    const users = await prisma.user.findMany({
+      where: userWhere,
+      orderBy: { name: 'asc' },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        isActive: true,
+        goalSheets: {
+          where: { cycleId: cycle.id },
+          select: {
+            id: true,
+            status: true,
+            submittedAt: true,
+            approvedAt: true,
+            _count: { select: { goals: true } },
+            cycle: { select: { name: true } },
+          },
+        },
+      },
+    })
+
+    const reports = users.map((user) => {
+      const sheet = user.goalSheets[0] || null
+      return {
+        userId: user.id,
+        name: user.name,
+        email: user.email,
+        isActive: user.isActive,
+        goalSheetId: sheet?.id || null,
+        goalSheetStatus: sheet?.status || null,
+        goalsCount: sheet?._count?.goals || 0,
+        submittedAt: sheet?.submittedAt || null,
+        approvedAt: sheet?.approvedAt || null,
+        cycleName: sheet?.cycle?.name || cycle.name || null,
+      }
+    })
+
+    return sendSuccess(res, { cycleName: cycle.name, reports })
+  } catch (err) {
+    return next(err)
+  }
+}
+
 export async function getGoalSheetById(req, res, next) {
   try {
     const sheet = await findSheetOrThrow(req.params.id)
@@ -183,6 +218,18 @@ export async function submitGoalSheet(req, res, next) {
         message: `${updated.user.name} has submitted their goal sheet for review.`,
         link: `/manager/approve/${updated.id}`,
       })
+
+      // Send email to manager
+      if (updated.user.reportingManager?.email) {
+        await sendNotificationEmail({
+          to: updated.user.reportingManager.email,
+          eventType: 'GOAL_SHEET_SUBMITTED',
+          data: {
+            employeeName: updated.user.name,
+            link: `${process.env.FRONTEND_URL || ''}/manager/approve/${updated.id}`,
+          },
+        })
+      }
     }
 
     return sendSuccess(res, updated)
@@ -224,6 +271,13 @@ export async function approveGoalSheet(req, res, next) {
       link: `/goals/sheet/${updated.id}`,
     })
 
+    // Send email to employee
+    await sendNotificationEmail({
+      to: updated.user.email,
+      eventType: 'GOAL_SHEET_APPROVED',
+      data: { link: `${process.env.FRONTEND_URL || ''}/goals/sheet/${updated.id}` },
+    })
+
     return sendSuccess(res, updated)
   } catch (err) {
     return next(err)
@@ -259,6 +313,16 @@ export async function returnGoalSheet(req, res, next) {
       link: `/goals/sheet/${updated.id}`,
     })
 
+    // Send email to employee
+    await sendNotificationEmail({
+      to: updated.user.email,
+      eventType: 'GOAL_SHEET_RETURNED',
+      data: {
+        reason,
+        link: `${process.env.FRONTEND_URL || ''}/goals/sheet/${updated.id}`,
+      },
+    })
+
     return sendSuccess(res, updated)
   } catch (err) {
     return next(err)
@@ -268,7 +332,10 @@ export async function returnGoalSheet(req, res, next) {
 export async function unlockGoalSheet(req, res, next) {
   try {
     const sheet = await findSheetOrThrow(req.params.id)
-    const reason = String(req.body.reason || 'Admin unlock').trim()
+    const reason = String(req.body.reason || '').trim()
+    if (!reason || reason.length < 5) {
+      throw new ValidationError('Unlock reason is required (min 5 characters)')
+    }
 
     const updated = await prisma.$transaction(async (tx) => {
       await tx.goal.updateMany({
@@ -281,6 +348,9 @@ export async function unlockGoalSheet(req, res, next) {
           userId: req.user.id,
           action: 'GOAL_SHEET_UNLOCKED',
           reason,
+          fieldChanged: 'status',
+          oldValue: sheet.status,
+          newValue: 'RETURNED',
         },
       })
 
@@ -288,7 +358,7 @@ export async function unlockGoalSheet(req, res, next) {
         where: { id: sheet.id },
         data: {
           status: 'RETURNED',
-          returnReason: reason,
+          returnReason: `[Admin Unlock] ${reason}`,
         },
         include: includeSheet(),
       })
@@ -299,6 +369,68 @@ export async function unlockGoalSheet(req, res, next) {
       title: 'Goal Sheet Unlocked',
       message: 'Your goal sheet has been unlocked by Admin. Please update and resubmit.',
       link: `/goals/sheet/${updated.id}`,
+    })
+
+    return sendSuccess(res, updated)
+  } catch (err) {
+    return next(err)
+  }
+}
+
+export async function unlockGoal(req, res, next) {
+  try {
+    const goal = await prisma.goal.findUnique({
+      where: { id: req.params.goalId },
+      include: {
+        goalSheet: {
+          include: {
+            user: { select: { id: true, name: true, email: true } },
+          },
+        },
+      },
+    })
+
+    if (!goal) throw new NotFoundError('Goal')
+    if (!goal.isLocked) throw new ValidationError('This goal is not locked')
+
+    const reason = String(req.body.reason || '').trim()
+    if (!reason || reason.length < 5) {
+      throw new ValidationError('Unlock reason is required (min 5 characters)')
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      await tx.auditLog.create({
+        data: {
+          userId: req.user.id,
+          goalId: goal.id,
+          action: 'GOAL_UNLOCKED',
+          reason,
+          fieldChanged: 'isLocked',
+          oldValue: 'true',
+          newValue: 'false',
+        },
+      })
+
+      await tx.goal.update({
+        where: { id: goal.id },
+        data: { isLocked: false },
+      })
+
+      return tx.goalSheet.update({
+        where: { id: goal.goalSheetId },
+        data: {
+          status: 'RETURNED',
+          returnReason: `[Admin Goal Unlock] ${reason}`,
+        },
+        include: includeSheet(),
+      })
+    })
+
+    await createNotification({
+      userId: goal.goalSheet.userId,
+      title: 'Goal Unlocked',
+      message: `Your goal "${goal.title}" has been unlocked by Admin.`,
+      link: `/goals/sheet/${goal.goalSheetId}`,
     })
 
     return sendSuccess(res, updated)

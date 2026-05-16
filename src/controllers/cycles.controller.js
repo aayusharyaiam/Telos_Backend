@@ -1,12 +1,75 @@
 import prisma from '../config/prisma.js'
+import { sendNotificationEmail } from '../services/email.service.js'
+import { createNotification } from '../services/notification.service.js'
 import { NotFoundError, ValidationError } from '../utils/errors.js'
 import { sendSuccess } from '../utils/response.js'
 
 const PHASES = new Set(['GOAL_SETTING', 'Q1_CHECKIN', 'Q2_CHECKIN', 'Q3_CHECKIN', 'Q4_CHECKIN'])
 const STATUSES = new Set(['OPEN', 'CLOSED', 'FORCE_OPEN', 'FORCE_CLOSED'])
+const CHECKIN_PHASE_TO_QUARTER = {
+  Q1_CHECKIN: 'Q1',
+  Q2_CHECKIN: 'Q2',
+  Q3_CHECKIN: 'Q3',
+  Q4_CHECKIN: 'Q4',
+}
 
 function includeCycle() {
   return { windows: { orderBy: { opensAt: 'asc' } } }
+}
+
+function formatDeadline(value) {
+  if (!value) return 'the window deadline'
+  return new Date(value).toLocaleDateString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  })
+}
+
+function checkinLinkForRole(role, quarter) {
+  if (role === 'ADMIN') return '/admin/completion'
+  if (role === 'MANAGER') return `/manager/team?quarter=${quarter}`
+  return `/goals/sheet/active/checkin?quarter=${quarter}`
+}
+
+async function notifyCheckinWindowOpened({ phase, window, oldWindow }) {
+  const quarter = CHECKIN_PHASE_TO_QUARTER[phase]
+  if (!quarter) return
+
+  const wasOpen = oldWindow?.status === 'OPEN' || oldWindow?.status === 'FORCE_OPEN'
+  const isOpen = window.status === 'OPEN' || window.status === 'FORCE_OPEN'
+  if (!isOpen || wasOpen) return
+
+  const deadline = formatDeadline(window.closesAt)
+  const message = `${quarter} Check-in is now open. Update your achievements by ${deadline}.`
+  const users = await prisma.user.findMany({
+    where: { isActive: true },
+    select: { id: true, name: true, email: true, role: true },
+  })
+
+  await Promise.all(
+    users.map(async (user) => {
+      const link = checkinLinkForRole(user.role, quarter)
+      await createNotification({
+        userId: user.id,
+        title: `${quarter} Check-in Window Open`,
+        message,
+        link,
+      })
+
+      if (user.email) {
+        await sendNotificationEmail({
+          to: user.email,
+          eventType: 'CHECKIN_WINDOW_OPENED',
+          data: {
+            quarter,
+            message,
+            link: `${process.env.FRONTEND_URL || ''}${link}`,
+          },
+        })
+      }
+    })
+  )
 }
 
 export async function listCycles(req, res, next) {
@@ -93,6 +156,11 @@ export async function updateCycleWindow(req, res, next) {
     if (req.body.opensAt) data.opensAt = new Date(req.body.opensAt)
     if (req.body.closesAt) data.closesAt = new Date(req.body.closesAt)
 
+    // Find old status for audit
+    const oldWindow = await prisma.cycleWindow.findUnique({
+      where: { cycleId_phase: { cycleId: req.params.id, phase } },
+    })
+
     const window = await prisma.cycleWindow.upsert({
       where: { cycleId_phase: { cycleId: req.params.id, phase } },
       update: data,
@@ -104,6 +172,22 @@ export async function updateCycleWindow(req, res, next) {
         status,
       },
     })
+
+    // Audit log for window status change
+    if (req.user) {
+      await prisma.auditLog.create({
+        data: {
+          userId: req.user.id,
+          action: 'CYCLE_WINDOW_UPDATED',
+          fieldChanged: `${phase} status`,
+          oldValue: oldWindow?.status || 'N/A',
+          newValue: status,
+        },
+      })
+    }
+
+    await notifyCheckinWindowOpened({ phase, window, oldWindow })
+
     return sendSuccess(res, window)
   } catch (err) {
     return next(err)

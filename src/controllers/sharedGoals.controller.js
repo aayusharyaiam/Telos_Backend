@@ -1,5 +1,6 @@
 import prisma from '../config/prisma.js'
 import { createNotification } from '../services/notification.service.js'
+import { sendNotificationEmail } from '../services/email.service.js'
 import { computeScore } from '../services/score.service.js'
 import { ForbiddenError, NotFoundError, ValidationError } from '../utils/errors.js'
 import { sendSuccess } from '../utils/response.js'
@@ -12,6 +13,13 @@ const UOM_TYPES = new Set([
   'TIMELINE',
   'ZERO',
 ])
+const QUARTERS = new Set(['Q1', 'Q2', 'Q3', 'Q4'])
+
+function normalizeQuarter(value) {
+  const quarter = String(value || 'Q2').toUpperCase()
+  if (!QUARTERS.has(quarter)) throw new ValidationError('Invalid quarter')
+  return quarter
+}
 
 function normalizeSharedGoalInput(body, partial = false) {
   const data = {}
@@ -46,6 +54,9 @@ function includeSharedGoal() {
     createdBy: {
       select: { id: true, name: true, email: true, role: true },
     },
+    primaryOwner: {
+      select: { id: true, name: true, email: true, role: true },
+    },
     linkedGoals: {
       include: {
         goalSheet: {
@@ -54,6 +65,9 @@ function includeSharedGoal() {
               select: { id: true, name: true, email: true, reportingManagerId: true },
             },
           },
+        },
+        checkins: {
+          orderBy: { quarter: 'asc' },
         },
       },
       orderBy: { createdAt: 'asc' },
@@ -75,7 +89,7 @@ async function assertCanUseRecipients(reqUser, recipientIds) {
   const recipients = await prisma.user.findMany({
     where: {
       id: { in: recipientIds },
-      role: 'EMPLOYEE',
+      role: { in: ['EMPLOYEE', 'MANAGER'] },
       isActive: true,
       ...(reqUser.role === 'ADMIN' ? {} : { reportingManagerId: reqUser.id }),
     },
@@ -93,8 +107,8 @@ export async function listSharedGoalRecipients(req, res, next) {
   try {
     const where =
       req.user.role === 'ADMIN'
-        ? { role: 'EMPLOYEE', isActive: true }
-        : { role: 'EMPLOYEE', isActive: true, reportingManagerId: req.user.id }
+        ? { role: { in: ['EMPLOYEE', 'MANAGER'] }, isActive: true }
+        : { role: { in: ['EMPLOYEE', 'MANAGER'] }, isActive: true, reportingManagerId: req.user.id }
 
     const recipients = await prisma.user.findMany({
       where,
@@ -130,6 +144,10 @@ export async function createSharedGoal(req, res, next) {
     const data = normalizeSharedGoalInput(req.body)
     const cycle = await getActiveCycle()
     const recipients = await assertCanUseRecipients(req.user, recipientIds)
+    const primaryOwnerId = req.body.primaryOwnerId ? String(req.body.primaryOwnerId) : recipientIds[0]
+    if (!recipientIds.includes(primaryOwnerId)) {
+      throw new ValidationError('Primary owner must be one of the selected recipients')
+    }
 
     const created = await prisma.$transaction(async (tx) => {
       const existingSheets = await tx.goalSheet.findMany({
@@ -155,6 +173,7 @@ export async function createSharedGoal(req, res, next) {
         data: {
           ...data,
           createdById: req.user.id,
+          primaryOwnerId,
         },
       })
 
@@ -192,14 +211,26 @@ export async function createSharedGoal(req, res, next) {
     })
 
     await Promise.all(
-      recipients.map((recipient) =>
-        createNotification({
+      recipients.map(async (recipient) => {
+        await createNotification({
           userId: recipient.id,
           title: 'Shared Goal Added',
           message: `A shared goal "${created.title}" has been added to your goal sheet.`,
           link: '/goals/sheet/active',
         })
-      )
+
+        // Batch J: Send email for shared goal pushed
+        if (recipient.email) {
+          await sendNotificationEmail({
+            to: recipient.email,
+            eventType: 'SHARED_GOAL_PUSHED',
+            data: {
+              goalTitle: created.title,
+              link: `${process.env.FRONTEND_URL || ''}/goals/sheet/active`,
+            },
+          })
+        }
+      })
     )
 
     return sendSuccess(res, created, 201)
@@ -226,6 +257,7 @@ export async function getSharedGoalById(req, res, next) {
 
 export async function updateSharedGoalAchievement(req, res, next) {
   try {
+    const quarter = normalizeQuarter(req.body.quarter)
     const goal = await prisma.sharedGoal.findUnique({
       where: { id: req.params.id },
       include: { linkedGoals: true },
@@ -263,9 +295,22 @@ export async function updateSharedGoalAchievement(req, res, next) {
           actualDate,
         })
 
-        await tx.checkinRecord.updateMany({
-          where: { goalId: linkedGoal.id },
-          data: { actualAchievement, actualDate, progressScore },
+        await tx.checkinRecord.upsert({
+          where: {
+            goalId_quarter: {
+              goalId: linkedGoal.id,
+              quarter,
+            },
+          },
+          update: { actualAchievement, actualDate, progressScore },
+          create: {
+            goalId: linkedGoal.id,
+            quarter,
+            actualAchievement,
+            actualDate,
+            progressScore,
+            goalStatus: 'ON_TRACK',
+          },
         })
       }
 
