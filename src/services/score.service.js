@@ -1,14 +1,17 @@
 export function computeScore({ uomType, target, actual, targetDate, actualDate }) {
-  if (actual === null && actualDate === null) return null
+  if (actual == null && actualDate == null) return null
 
   switch (uomType) {
     case 'NUMERIC_MIN':
     case 'PERCENTAGE_MIN': {
+      if (target == null) return null
       if (target === 0) return null
       return Math.min(100, (actual / target) * 100)
     }
     case 'NUMERIC_MAX':
     case 'PERCENTAGE_MAX': {
+      if (actual == null) return null
+      if (target == null) return null
       if (actual === 0) return 100
       if (target === 0) return null
       return Math.min(100, (target / actual) * 100)
@@ -18,6 +21,7 @@ export function computeScore({ uomType, target, actual, targetDate, actualDate }
       return new Date(actualDate) <= new Date(targetDate) ? 100 : 0
     }
     case 'ZERO': {
+      if (actual == null) return null
       return actual === 0 ? 100 : 0
     }
     default:

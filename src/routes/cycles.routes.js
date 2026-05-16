@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { authenticate } from '../middleware/authenticate.js'
 import { authorize } from '../middleware/authorize.js'
+import { validate } from '../middleware/validate.js'
 import {
   createCycle,
   getActiveCycle,
@@ -9,6 +10,7 @@ import {
   updateCycle,
   updateCycleWindow,
 } from '../controllers/cycles.controller.js'
+import { cycleSchemas } from '../utils/schemas.js'
 
 const router = Router()
 
@@ -16,12 +18,12 @@ router.get('/', authenticate, authorize('EMPLOYEE', 'MANAGER', 'ADMIN'), listCyc
 
 router.get('/active', authenticate, authorize('EMPLOYEE', 'MANAGER', 'ADMIN'), getActiveCycle)
 
-router.post('/', authenticate, authorize('ADMIN'), createCycle)
+router.post('/', authenticate, authorize('ADMIN'), validate(cycleSchemas.create), createCycle)
 
-router.patch('/:id', authenticate, authorize('ADMIN'), updateCycle)
+router.patch('/:id', authenticate, authorize('ADMIN'), validate(cycleSchemas.update), updateCycle)
 
 router.get('/:id/windows', authenticate, authorize('EMPLOYEE', 'MANAGER', 'ADMIN'), getCycleWindows)
 
-router.patch('/:id/windows/:phase', authenticate, authorize('ADMIN'), updateCycleWindow)
+router.patch('/:id/windows/:phase', authenticate, authorize('ADMIN'), validate(cycleSchemas.updateWindow), updateCycleWindow)
 
 export default router

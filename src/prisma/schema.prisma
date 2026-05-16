@@ -152,6 +152,11 @@ model Goal {
   isShared       Boolean     @default(false)
   parentGoalId   String?
 
+  q1Target       Float?
+  q2Target       Float?
+  q3Target       Float?
+  q4Target       Float?
+
   goalSheet      GoalSheet   @relation(fields: [goalSheetId], references: [id])
   parentSharedGoal SharedGoal? @relation(fields: [parentGoalId], references: [id])
   checkins       CheckinRecord[]

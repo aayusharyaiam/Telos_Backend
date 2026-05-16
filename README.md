@@ -7,36 +7,86 @@ Telos AtomQuest is a full-stack goal setting and performance tracking portal. It
 ```txt
 |-- Telos_Backend
 |   |-- src
-|   |   |-- app.js
+|   |   |-- app.js                    # Express entry point
 |   |   |-- config
-|   |   |-- controllers
-|   |   |-- jobs
+|   |   |   |-- firebase.js           # Firebase Admin init
+|   |   |   |-- prisma.js             # PrismaClient singleton
+|   |   |-- controllers               # Request handlers
+|   |   |-- jobs                      # node-cron escalation job
 |   |   |-- middleware
+|   |   |   |-- authenticate.js       # Firebase token verification
+|   |   |   |-- authorize.js          # Role-based access control
+|   |   |   |-- validate.js           # Zod input validation wrapper
+|   |   |   |-- checkNotLocked.js     # Locked-goal guard
+|   |   |   |-- auditLogger.js        # Post-edit change detection
+|   |   |   |-- errorHandler.js       # Global error handler
 |   |   |-- prisma
-|   |   |-- routes
+|   |   |   |-- schema.prisma         # 12 models, 8 enums
+|   |   |   |-- migrations
+|   |   |-- routes                    # 11 route groups
 |   |   |-- services
-|   |   `-- utils
+|   |   |   |-- score.service.js
+|   |   |   |-- goalValidation.service.js
+|   |   |   |-- notification.service.js
+|   |   |   |-- email.service.js
+|   |   |   |-- escalation.service.js
+|   |   |   |-- reportFilters.service.js
+|   |   |-- utils
+|   |   |   |-- constants.js          # Shared enums/constants
+|   |   |   |-- cycleHelper.js        # Window status helpers
+|   |   |   |-- schemas.js            # Zod validation schemas
+|   |   |   |-- errors.js             # Custom error classes
+|   |   |   |-- response.js           # Response envelope helpers
 |   |-- prisma
+|   |   |-- seed.js
+|   |   |-- seed-users.js
 |   |-- scripts
+|   |   |-- setup-db.js
+|   |-- test
+|   |   |-- business-rules.test.js    # 18 unit tests
 |   |-- package.json
-|   `-- package-lock.json
 |-- Telos_Frontend
 |   |-- src
-|   |   |-- api
+|   |   |-- api                       # 11 API wrappers
 |   |   |-- components
+|   |   |   |-- layout
+|   |   |   |   |-- AppShell.jsx
+|   |   |   |   |-- Navbar.jsx
+|   |   |   |   |-- Sidebar.jsx
+|   |   |   |   |-- NotificationDrawer.jsx
+|   |   |   |   |-- PageHeader.jsx
+|   |   |   |-- goals
+|   |   |   |   |-- WeightageBar.jsx
+|   |   |   |   |-- GoalCard.jsx
+|   |   |   |   |-- ProgressScoreBadge.jsx
+|   |   |   |-- shared
+|   |   |       |-- Badge.jsx
+|   |   |       |-- ConfirmModal.jsx
+|   |   |       |-- Modal.jsx
+|   |   |       |-- Table.jsx
+|   |   |       |-- EmptyState.jsx
+|   |   |       |-- FullScreenLoader.jsx
+|   |   |       |-- StatCard.jsx
 |   |   |-- context
 |   |   |-- firebase
 |   |   |-- hooks
+|   |   |   |-- useAuth.js
+|   |   |   |-- useGoalSheet.js
+|   |   |   |-- useCurrentCycle.js
+|   |   |   |-- useWindowStatus.js
 |   |   |-- pages
+|   |   |   |-- auth
+|   |   |   |-- employee
+|   |   |   |-- manager
+|   |   |   |-- admin (9 pages)
+|   |   |   |-- shared
+|   |   |       |-- SettingsPage.jsx
 |   |   |-- routes
-|   |   `-- utils
+|   |   |-- utils
 |   |-- package.json
-|   `-- package-lock.json
 |-- prd.md
 |-- trd.md
-|-- implementation_plan.md
-|-- implementation_summary.md
-`-- README.md
+|-- README.md
 ```
 
 ## Tech Stack
@@ -50,6 +100,7 @@ Telos AtomQuest is a full-stack goal setting and performance tracking portal. It
 - Resend for email notifications
 - node-cron for optional scheduled escalation checks
 - xlsx for Excel export
+- Zod for input validation
 - Helmet, CORS, and express-rate-limit
 
 ### Frontend
@@ -57,11 +108,14 @@ Telos AtomQuest is a full-stack goal setting and performance tracking portal. It
 - React 19
 - Vite
 - React Router
-- Tailwind CSS v4
+- Tailwind CSS v4 (CSS-based theme in `index.css`)
 - Firebase Email/Password Auth
 - Axios API client
+- React Hook Form
+- react-hot-toast
 - Heroicons
 - Recharts
+- date-fns
 
 ## Main Capabilities
 
@@ -80,15 +134,18 @@ Telos AtomQuest is a full-stack goal setting and performance tracking portal. It
 
 - Employee can create an active-cycle goal sheet.
 - Employee can add, edit, and delete personal goals while the sheet is `DRAFT` or `RETURNED`.
-- Goal validation:
+- Goal validation (enforced by Zod schemas + backend):
   - At least one goal before submission.
   - Maximum 8 goals per cycle.
   - Minimum 10 percent weightage per goal.
   - Total weightage must equal exactly 100 percent before submission.
   - Title, thrust area, UoM, target, and date values are validated server-side.
+- Weightage bar shows real-time health (green at 100%, red if over).
+- Weightage >90% triggers a warning: "leaves very little room for other goals".
+- Auto-save: draft form backed up to localStorage every 30s and on blur.
 - Employee can submit goal sheet for approval.
 - Submitted sheets cannot be edited by employee until returned.
-- Approved goals are locked.
+- Approved goals are locked (checked by `checkNotLocked` middleware).
 
 ### Manager Approval Workflow
 
@@ -101,8 +158,9 @@ Telos AtomQuest is a full-stack goal setting and performance tracking portal. It
   - `Returned`
 - Managers can review submitted sheets.
 - Managers can adjust goal weightage while a sheet is submitted.
+- **Diff view**: edited goals are highlighted with yellow background; original values shown with strikethrough; collapsible "Show diff view" panel.
 - Managers can approve submitted sheets.
-- Managers can return submitted sheets with a required reason.
+- Managers can return submitted sheets with a required reason (min 20 chars).
 - Approve and return actions use confirmation modals.
 - Notifications and emails are created for submit, approve, and return flows.
 
@@ -112,6 +170,7 @@ Telos AtomQuest is a full-stack goal setting and performance tracking portal. It
 - Quarter selectors reload quarter-specific records.
 - Check-in editability respects cycle-window status.
 - Employees can save actual achievement or actual date, status, and notes.
+- **"Awaiting owner update" indicator** shown for shared goals whose primary owner hasn't entered data.
 - Managers can add comments and mark check-ins complete.
 - Shared-goal actuals sync into check-in views.
 - Progress score is computed server-side.
@@ -124,14 +183,25 @@ Backend score logic lives in:
 Telos_Backend/src/services/score.service.js
 ```
 
+Frontend mirror (same formulas):
+
+```txt
+Telos_Frontend/src/utils/scoreComputer.js
+```
+
 Supported UoM types:
 
-- `NUMERIC_MIN`
-- `NUMERIC_MAX`
-- `PERCENTAGE_MIN`
-- `PERCENTAGE_MAX`
-- `TIMELINE`
-- `ZERO`
+- `NUMERIC_MIN` — Higher is better, capped at 100%
+- `NUMERIC_MAX` — Lower is better, capped at 100%
+- `PERCENTAGE_MIN` — Higher is better, capped at 100%
+- `PERCENTAGE_MAX` — Lower is better, capped at 100%
+- `TIMELINE` — On-time = 100%, late = 0%
+- `ZERO` — Zero = 100%, anything else = 0%
+
+Edge cases handled:
+- Division-by-zero guard returns `null` (displayed as "N/A")
+- Null actuals return `null` (displayed as "N/A")
+- Scores capped at 100 for all numeric types
 
 ### Shared Goals
 
@@ -144,7 +214,7 @@ Supported UoM types:
 - Employees cannot delete shared linked goals.
 - Employees can rebalance shared goal weightage.
 - Shared target data is read-only for employees.
-- Shared goals now support a persisted `primaryOwnerId`.
+- Shared goals support a persisted `primaryOwnerId`.
 - The UI allows primary owner selection from selected recipients.
 - Shared actual updates are quarter-aware and upsert linked check-in records for the selected quarter.
 - Shared actuals and scores appear in check-in views and exports.
@@ -152,17 +222,13 @@ Supported UoM types:
 
 ### Notifications
 
-- Navbar notification bell shows unread count.
+- Notification drawer extracted as a standalone `NotificationDrawer` component.
+- Navbar bell shows unread count badge.
 - Drawer polls every 30 seconds while logged in.
 - Notifications list real backend records.
-- Mark all read is supported.
-- Clicking a notification with a link:
-  - Marks that notification read.
-  - Navigates to the linked page.
-- Notification routes:
-  - `GET /api/v1/notifications`
-  - `PATCH /api/v1/notifications/:id/read`
-  - `PATCH /api/v1/notifications/read-all`
+- Mark all read supported.
+- Clicking a notification with a link marks it read and navigates to the linked page.
+- Routes: `GET /api/v1/notifications`, `PATCH /:id/read`, `PATCH /read-all`
 
 ### Admin User Management
 
@@ -178,41 +244,24 @@ Supported UoM types:
 - Admins can view the active cycle and its windows.
 - Admins can force open or force close:
   - Goal Setting
-  - Q1 Check-in
-  - Q2 Check-in
-  - Q3 Check-in
-  - Q4 Check-in
+  - Q1 Check-in through Q4 Check-in
 - Force open/close uses confirmation modal.
 - Opening a check-in window creates in-app notifications and sends emails when Resend is configured.
 - Employee dashboard shows an open-check-in banner with deadline and deep link.
+- Helper functions in `src/utils/cycleHelper.js`: `getCurrentWindowStatus`, `getActiveCycle`, `getWindow`.
 
 ### Thrust Areas
 
 - Admins can view, add, rename, activate, and deactivate thrust areas.
 - Goal creation forms load active thrust areas from the backend.
 - Frontend falls back to local constants if thrust area API loading fails.
-- Existing constants remain as fallback in:
-
-```txt
-Telos_Frontend/src/utils/constants.js
-```
 
 ### Goal Unlock
 
 - Admins can unlock an entire approved goal sheet.
 - Admins can unlock a specific locked goal.
-- Per-goal unlock endpoint:
-
-```txt
-PATCH /api/v1/goals/:goalId/unlock
-```
-
-- Sheet-level unlock endpoint:
-
-```txt
-PATCH /api/v1/goal-sheets/:id/unlock
-```
-
+- Per-goal unlock: `PATCH /api/v1/goals/:goalId/unlock`
+- Sheet-level unlock: `PATCH /api/v1/goal-sheets/:id/unlock`
 - Unlocks require a reason.
 - Unlock actions create audit logs.
 - Unlock actions notify the employee.
@@ -221,102 +270,70 @@ PATCH /api/v1/goal-sheets/:id/unlock
 ### Reporting and Analytics
 
 - Completion dashboard shows quarter selector and Q1-Q4 row statuses.
-- Achievement report supports:
-  - JSON
-  - CSV
-  - XLSX
-- Achievement report filters:
-  - `cycleId`
-  - `quarter`
-  - `managerId`
-  - `employeeId`
-  - `status`
-  - `department`
-  - `employeeSearch`
-- Managers are scoped to their own team.
+- Achievement report supports JSON, CSV, XLSX.
+- Filters: `cycleId`, `quarter`, `managerId`, `employeeId`, `status`, `department`, `employeeSearch`.
+- Managers scoped to their own team.
 - Admins can see all organization data.
-- Analytics page includes:
-  - Overview cards
-  - Quarter trend chart
-  - Goal distribution chart
-  - Export controls and filters
+- Analytics page includes overview cards, quarter trend chart (Recharts), goal distribution chart, export controls.
 
 ### Audit Trail
 
-- Admin audit page shows audit logs with:
-  - Action
-  - Field changed
-  - Old value
-  - New value
-  - Reason
-  - User
-  - Goal where applicable
-  - Timestamp
-- Filters:
-  - Action
-  - Start date
-  - End date
-- Common audit actions include:
-  - `USER_CREATED`
-  - `USER_ROLE_CHANGED`
-  - `USER_ACTIVATION_CHANGED`
-  - `THRUST_AREA_CREATED`
-  - `THRUST_AREA_UPDATED`
-  - `CYCLE_WINDOW_UPDATED`
-  - `GOAL_SHEET_UNLOCKED`
-  - `GOAL_UNLOCKED`
-  - `ESCALATION_RULE_CREATED`
-  - `ESCALATION_RESOLVED`
+- Admin audit page shows logs with action, field changed, old/new values, reason, user, goal, timestamp.
+- Filters: action type, start date, end date.
+- Key actions: `USER_CREATED`, `USER_ROLE_CHANGED`, `GOAL_UNLOCKED`, `CYCLE_WINDOW_UPDATED`, `THRUST_AREA_CREATED`, `ESCALATION_RESOLVED`, etc.
 
 ### Escalations
 
 - Admins can create, enable, disable, and list escalation rules.
 - Admins can run escalation checks manually.
 - Optional cron job runs when `ENABLE_ESCALATION_JOB=true`.
-- Escalation states:
-  - `PENDING`
-  - `ESCALATED`
-  - `RESOLVED`
-- Supported escalation patterns:
-  - Goal setting overdue.
-  - Approval overdue.
-  - Employee check-in overdue.
-  - Manager check-in review overdue.
+- States: `PENDING` → `ESCALATED` → `RESOLVED`.
+- Patterns: goal setting overdue, approval overdue, employee check-in overdue, manager check-in review overdue.
 - Escalations create in-app notifications and Resend emails when configured.
+
+### Settings / Profile
+
+- Shared `/settings` page available to all roles.
+- Displays: name, email, role, department, account status.
+
+## Middleware Architecture
+
+All routes are protected by a middleware chain:
+
+1. **`authenticate`** — Verifies Firebase Bearer token, looks up user in DB.
+2. **`authorize`** — Checks user role against allowed roles for the route.
+3. **`validate`** (Zod) — Parses request body/params/query against schemas from `src/utils/schemas.js`.
+4. **`checkNotLocked`** — Guards goal PATCH/DELETE routes against locked goals.
+5. **`auditLogger`** — Captures post-edit changes on goal modifications.
 
 ## Routes
 
 ### Frontend Routes
 
 ```txt
-/login
-/goals
-/goals/sheet/:sheetId
-/goals/sheet/:sheetId/checkin
-/manager/team
-/manager/approve/:sheetId
-/manager/checkin/:employeeId
-/manager/shared-goals
-/admin
-/admin/users
-/admin/cycles
-/admin/audit
-/admin/completion
-/admin/analytics
-/admin/thrust-areas
-/admin/escalations
-/admin/unlock
+/login                              # Login with demo credentials
+/goals                              # Employee: My Goals dashboard
+/goals/sheet/:sheetId               # Employee: Goal sheet editor
+/goals/sheet/:sheetId/checkin       # Employee: Quarterly check-in
+/manager/team                       # Manager: Team overview
+/manager/approve/:sheetId           # Manager: Approval review with diff view
+/manager/checkin/:employeeId        # Manager: Check-in per employee
+/manager/shared-goals               # Manager: Shared goals management
+/admin                              # Admin: Command center
+/admin/users                        # Admin: User management
+/admin/cycles                       # Admin: Cycle/window config
+/admin/audit                        # Admin: Audit trail
+/admin/completion                   # Admin: Completion dashboard
+/admin/analytics                    # Admin: Analytics & export
+/admin/thrust-areas                 # Admin: Thrust area management
+/admin/escalations                  # Admin: Escalation rules & log
+/admin/unlock                       # Admin: Goal unlock (sheet + per-goal)
+/settings                           # All roles: Profile & settings
 ```
 
 ### Backend Route Prefixes
 
-All API routes are mounted under:
-
-```txt
-/api/v1
-```
-
-Route groups:
+All API routes mounted under `/api/v1`:
 
 ```txt
 /health
@@ -334,63 +351,28 @@ Route groups:
 
 ## Database Model Overview
 
-Main Prisma models:
+Main Prisma models (12):
 
-- `User`
-- `Cycle`
-- `CycleWindow`
-- `GoalSheet`
-- `Goal`
-- `SharedGoal`
-- `CheckinRecord`
+- `User` — with self-referencing `reportingManagerId` for hierarchy
+- `Cycle` — active cycle tracking
+- `CycleWindow` — per-phase window with force-override status
+- `GoalSheet` — unique per `userId` + `cycleId`
+- `Goal` — with `isLocked`, `isShared`, `parentGoalId`; includes quarter milestone targets (`q1Target`–`q4Target`)
+- `SharedGoal` — with `primaryOwnerId` for achievement sync
+- `CheckinRecord` — unique per `goalId` + `quarter`
 - `Notification`
 - `AuditLog`
 - `ThrustArea`
 - `EscalationRule`
 - `Escalation`
 
-Important relations:
-
-- `User.reportingManagerId` models manager/direct-report hierarchy.
-- `GoalSheet` is unique by `userId` and `cycleId`.
-- `Goal.parentGoalId` links an employee goal to `SharedGoal`.
-- `SharedGoal.primaryOwnerId` stores the selected primary owner.
-- `CheckinRecord` is unique by `goalId` and `quarter`.
-
-Recent schema addition:
-
-```txt
-SharedGoal.primaryOwnerId
-```
-
-Migration file:
-
-```txt
-Telos_Backend/src/prisma/migrations/20260516070000_add_shared_goal_primary_owner/migration.sql
-```
-
-The current Supabase database was synced with:
-
-```powershell
-cd C:\Users\aayus\working-ly\Telos_AtomQuest\Telos_Backend
-npx.cmd prisma db push
-```
-
-Note: `prisma migrate deploy` may require baselining because the existing Supabase schema was not originally created through Prisma Migrate.
-
 ## Environment Variables
 
-Do not commit real `.env` values.
+Do not commit real `.env` values. Both `.env` files are in `.gitignore`.
 
-### Backend `.env`
+### Backend `.env` (`Telos_Backend/.env`)
 
-Located at:
-
-```txt
-Telos_Backend/.env
-```
-
-Required for production-like auth and DB:
+Required:
 
 ```txt
 DATABASE_URL=
@@ -415,21 +397,7 @@ DEV_FIREBASE_NAME=
 NODE_ENV=development
 ```
 
-Notes:
-
-- `FIREBASE_PRIVATE_KEY` supports escaped newlines and is converted with `.replace(/\\n/g, '\n')`.
-- If Resend env vars are missing, email sending logs a skip and does not crash.
-- `SKIP_FIREBASE_AUTH=true` enables a development stub when Firebase Admin env vars are not present.
-
-### Frontend `.env`
-
-Located at:
-
-```txt
-Telos_Frontend/.env
-```
-
-Expected values:
+### Frontend `.env` (`Telos_Frontend/.env`)
 
 ```txt
 VITE_API_URL=http://localhost:3000/api/v1
@@ -453,17 +421,7 @@ npx.cmd prisma generate
 npm run dev
 ```
 
-Backend default:
-
-```txt
-http://localhost:3000
-```
-
-Health check:
-
-```txt
-http://localhost:3000/health
-```
+Runs at: `http://localhost:3000` | Health: `http://localhost:3000/health`
 
 ### Frontend
 
@@ -473,148 +431,90 @@ npm install
 npm run dev
 ```
 
-Frontend default:
+Runs at: `http://localhost:5173/login`
 
-```txt
-http://localhost:5173/login
-```
-
-## Seed and Demo Data
-
-Backend scripts:
+### Seed Data
 
 ```powershell
 cd C:\Users\aayus\working-ly\Telos_AtomQuest\Telos_Backend
-npm run seed
-npm run seed:users
 npm run seed:all
 ```
 
-Demo accounts commonly used in this workspace:
+Demo accounts:
 
-```txt
-employee@telos.demo / Demo@1234
-employee2@telos.demo / Demo@1234
-employee3@telos.demo / Demo@1234
-manager@telos.demo / Demo@1234
-manager2@telos.demo / Demo@1234
-manager3@telos.demo / Demo@1234
-admin@telos.demo / Demo@1234
-admin2@telos.demo / Demo@1234
-admin3@telos.demo / Demo@1234
-```
+| Role     | Email                  | Password   |
+|----------|------------------------|------------|
+| Employee | employee@telos.demo    | Demo@1234  |
+| Manager  | manager@telos.demo     | Demo@1234  |
+| Admin    | admin@telos.demo       | Demo@1234  |
 
-## Verification Commands
-
-### Backend Syntax Check
+## Verification
 
 ```powershell
-cd C:\Users\aayus\working-ly\Telos_AtomQuest\Telos_Backend
-Get-ChildItem -Recurse -Filter *.js src | ForEach-Object { node --check $_.FullName }
-```
+# Backend tests
+cd Telos_Backend; npm test
 
-### Frontend Build
-
-```powershell
-cd C:\Users\aayus\working-ly\Telos_AtomQuest\Telos_Frontend
-npm.cmd run build
+# Frontend build
+cd Telos_Frontend; npm run build
 ```
 
 Current status:
-
-- Backend syntax check passes.
-- Frontend production build passes.
-- Vite reports a non-blocking large chunk warning.
+- **Backend**: 18/18 unit tests passing (validation, score computation, report filters, completion summary).
+- **Frontend**: Production build passes (Vite chunk-size warning is non-blocking).
 
 ## Manual Smoke Tests
 
 ### Employee Goal Sheet
-
 1. Login as `employee@telos.demo`.
-2. Go to My Goals.
-3. Create a goal sheet if one does not exist.
-4. Add goals totaling 100 percent weightage.
-5. Submit for approval.
-6. Confirm submitted sheet cannot be edited by employee.
+2. Go to My Goals → Create goal sheet.
+3. Add goals totaling 100% weightage. Verify >90% warning appears.
+4. Auto-save backup occurs to localStorage every 30s.
+5. Submit for approval. Verify sheet cannot be edited.
 
-### Manager Approval
-
+### Manager Approval (with diff view)
 1. Login as `manager@telos.demo`.
-2. Go to Team Overview.
-3. Confirm direct reports appear even if they have no sheet.
-4. Review a submitted sheet.
-5. Approve or return with a reason.
-6. Confirm employee receives notification.
+2. Go to Team Overview → Review submitted sheet.
+3. Adjust weightage — edited row highlights yellow.
+4. Click "Show diff view" — see original vs edited values.
+5. Approve or return with reason (min 20 chars).
 
 ### Quarterly Check-ins
-
-1. Admin force-opens a quarter check-in window.
-2. Login as employee.
-3. Go to Check-ins.
-4. Select Q1, Q2, Q3, or Q4.
-5. Save actuals and notes.
-6. Login as manager.
-7. Open manager check-in for the same employee and quarter.
-8. Add manager comment and submit.
+1. Admin force-opens a quarter window.
+2. Employee saves actuals. Shared goals show "Awaiting owner update" if primary owner hasn't entered data.
+3. Manager adds comment and marks complete.
 
 ### Shared Goals
-
-1. Login as manager or admin.
-2. Go to Shared Goals.
-3. Select recipients and a primary owner.
-4. Push the shared goal.
-5. Set a shared actual for a selected quarter.
-6. Login as recipient.
-7. Confirm shared goal appears with badge.
-8. Confirm shared actual and score appear in the correct quarter.
+1. Manager creates shared goal with recipients + primary owner.
+2. Recipient sees shared badge, read-only target, editable weightage.
+3. Primary owner enters actual → syncs to all linked employees.
 
 ### Admin Operations
-
-1. Login as admin.
-2. Create and deactivate thrust areas.
-3. Force open and force close cycle windows.
-4. Create users and update roles.
-5. Unlock a whole sheet and a single goal.
-6. Run escalation check.
-7. Filter audit logs.
-8. Download CSV and XLSX achievement reports.
+1. Force-open/close windows, create users, unlock goals, run escalations.
+2. Export CSV/XLSX achievement reports.
+3. Filter audit logs.
 
 ## Known Engineering Notes
 
-- Automated tests are still light compared with the feature surface. The backend has a `node --test` script, but broader integration and frontend test coverage should be expanded.
-- The frontend build currently passes with a Vite chunk-size warning.
-- Prisma's `package.json#prisma` config emits a deprecation warning for Prisma 7. A future cleanup should move Prisma configuration into a dedicated Prisma config file.
-- The database was synced with `prisma db push`; if using Prisma Migrate in production, baseline the existing Supabase schema first.
+- **18 unit tests** cover validation, score computation, report filters, and completion summaries. Integration and frontend test coverage should be expanded.
+- Frontend build passes with a Vite chunk-size warning (~949 KB) — dynamic imports could improve code-splitting.
+- Prisma's `package.json#prisma` config emits a deprecation warning for Prisma 7. A future cleanup should move Prisma configuration into a dedicated config file.
+- Database was synced with `prisma db push`; if using Prisma Migrate in production, baseline the existing Supabase schema first.
 
 ## Useful Files
 
 Backend:
-
-```txt
-Telos_Backend/src/app.js
-Telos_Backend/src/prisma/schema.prisma
-Telos_Backend/src/controllers
-Telos_Backend/src/routes
-Telos_Backend/src/services
-Telos_Backend/src/middleware
-```
+- `src/app.js` — Entry point
+- `src/prisma/schema.prisma` — Full schema
+- `src/utils/schemas.js` — All Zod validation schemas
+- `src/middleware/` — Authenticate, authorize, validate, checkNotLocked, auditLogger
+- `src/services/` — Score, validation, notifications, email, escalation, report filters
 
 Frontend:
+- `src/routes/AppRouter.jsx` — All routes including `/settings`
+- `src/api/` — 11 API wrapper files
+- `src/pages/` — 17 pages across employee/manager/admin/shared
+- `src/components/` — Layout, goals, and shared component directories
+- `src/hooks/` — useAuth, useGoalSheet, useCurrentCycle, useWindowStatus
+- `src/index.css` — Tailwind v4 theme tokens
 
-```txt
-Telos_Frontend/src/routes/AppRouter.jsx
-Telos_Frontend/src/api
-Telos_Frontend/src/pages
-Telos_Frontend/src/components
-Telos_Frontend/src/context/AuthContext.jsx
-Telos_Frontend/src/index.css
-```
-
-Planning and product docs:
-
-```txt
-prd.md
-trd.md
-implementation_plan.md
-implementation_summary.md
-```
+Docs: `prd.md`, `trd.md`
