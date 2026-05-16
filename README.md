@@ -466,36 +466,39 @@ Current status:
 - **Backend**: 14/14 unit tests passing (validation, score computation, report filters, completion summary).
 - **Frontend**: Production build passes (~958 KB, ~270 KB gzip; Vite chunk-size warning is non-blocking).
 
-## Manual Smoke Tests
+## Manual Test Cases
 
-### Employee Goal Sheet
-1. Login as `employee@telos.demo`.
-2. Go to My Goals → Create goal sheet.
-3. Add goals totaling 100% weightage. Verify >90% warning appears.
-4. Auto-save backup occurs to localStorage every 30s.
-5. Submit for approval. Verify sheet cannot be edited.
+See `FINAL_REPORT.md` for the complete test suite (20+ detailed test cases across 8 suites).
 
-### Manager Approval (with diff view)
-1. Login as `manager@telos.demo`.
-2. Go to Team Overview → Review submitted sheet.
-3. Adjust weightage — edited row highlights yellow.
-4. Click "Show diff view" — see original vs edited values.
-5. Approve or return with reason (min 20 chars).
+### Quick Smoke Tests
 
-### Quarterly Check-ins
-1. Admin force-opens a quarter window.
-2. Employee saves actuals. Shared goals show "Awaiting owner update" if primary owner hasn't entered data.
-3. Manager adds comment and marks complete.
+**Employee Goal Sheet:**
+1. Login as `employee@telos.demo` → `/goals`
+2. Create goal sheet, add 2 goals totaling 100% weightage
+3. Verify WeightageBar shows "100% allocated — 0% remaining" in green
+4. Submit for approval → status changes to SUBMITTED, goals locked
 
-### Shared Goals
-1. Manager creates shared goal with recipients + primary owner.
-2. Recipient sees shared badge, read-only target, editable weightage.
-3. Primary owner enters actual → syncs to all linked employees.
+**Manager Approval:**
+1. Login as `manager@telos.demo` → `/manager/team`
+2. Review submitted sheet, adjust a weightage → yellow diff highlight
+3. Approve or return with reason (min 20 chars)
 
-### Admin Operations
-1. Force-open/close windows, create users, unlock goals, run escalations.
-2. Export CSV/XLSX achievement reports.
-3. Filter audit logs.
+**Quarterly Check-ins:**
+1. Admin force-opens Q1 window → `/admin/cycles`
+2. Employee saves actuals → `/goals/sheet/active/checkin`
+3. Manager adds comment and marks complete → `/manager/team`
+
+**Shared Goals:**
+1. Manager pushes shared goal → `/manager/shared-goals`
+2. Employee sees "Shared" badge, read-only target, editable weightage
+3. Primary owner enters actual → syncs to all linked sheets
+
+**Admin Operations:**
+1. CSV bulk import users → `/admin/users` "Import CSV"
+2. Archive past cycles → `/admin/cycles` "Archive"
+3. Export achievement reports → `/admin/analytics`
+4. View audit trail → `/admin/audit`
+5. Edit own profile → `/settings`
 
 ## Known Engineering Notes
 
@@ -516,7 +519,7 @@ Backend:
 Frontend:
 - `src/routes/AppRouter.jsx` — All routes including `/settings`
 - `src/api/` — 11 API wrapper files
-- `src/pages/` — 17 pages across employee/manager/admin/shared
+- `src/pages/` — 18 pages across employee/manager/admin/shared
 - `src/components/` — Layout, goals, and shared component directories
 - `src/hooks/` — useAuth, useGoalSheet, useCurrentCycle, useWindowStatus
 - `src/index.css` — Tailwind v4 theme tokens
