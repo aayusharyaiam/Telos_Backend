@@ -13,6 +13,7 @@ import {
   listEscalations,
   resolveEscalation,
   runEscalationCheck,
+  listEmailLogs,
 } from '../controllers/admin.controller.js'
 import { adminSchemas } from '../utils/schemas.js'
 
@@ -31,5 +32,7 @@ router.patch('/escalation-rules/:id', authenticate, authorize('ADMIN'), validate
 router.get('/escalations', authenticate, authorize('ADMIN'), listEscalations)
 router.patch('/escalations/:id/resolve', authenticate, authorize('ADMIN'), resolveEscalation)
 router.post('/escalations/run', authenticate, authorize('ADMIN'), runEscalationCheck)
+
+router.get('/email-logs', authenticate, authorize('ADMIN'), listEmailLogs)
 
 export default router

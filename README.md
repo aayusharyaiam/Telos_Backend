@@ -239,6 +239,7 @@ Edge cases handled:
 - Admins can activate and deactivate users.
 - Activate/deactivate uses confirmation modal.
 - User creation, import, and updates create audit logs.
+- Admins can set a **notification email** per user — a separate `notificationEmail` field on the User model. When set, email notifications are delivered to this address instead of the user's primary login email. This lets demo accounts (`user@telos.demo`) point at real inboxes without affecting Firebase authentication.
 
 ### Cycle and Window Management
 
@@ -278,6 +279,15 @@ Edge cases handled:
 - Managers scoped to their own team.
 - Admins can see all organization data.
 - Analytics page includes overview cards, quarter trend chart (Recharts), goal distribution chart, export controls.
+
+### Email Logs
+
+- Every email send attempt (success or failure) is persisted in the `EmailLog` table.
+- Captures: `to`, `subject`, `html` body, `eventType`, delivery `success` flag, and `error` message.
+- Admin page `/admin/email-logs` shows paginated logs with expandable HTML preview.
+- All 8 email event types (`GOAL_SHEET_SUBMITTED`, `GOAL_SHEET_APPROVED`, `GOAL_SHEET_RETURNED`, `GOAL_SHEET_UNLOCKED`, `SHARED_GOAL_PUSHED`, `CHECKIN_WINDOW_OPENED`, `CHECKIN_COMPLETED`, `ESCALATION`) are logged regardless of Resend delivery status.
+- Allows judges and admins to inspect email content even when demo email addresses are unreachable.
+- API: `GET /api/v1/admin/email-logs?page=1&limit=50` (admin only, paginated).
 
 ### Audit Trail
 
@@ -391,6 +401,7 @@ Main Prisma models (12):
 - `CheckinRecord` — unique per `goalId` + `quarter`
 - `Notification`
 - `AuditLog`
+- `EmailLog`
 - `ThrustArea`
 - `EscalationRule`
 - `Escalation`

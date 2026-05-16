@@ -371,6 +371,17 @@ export async function unlockGoalSheet(req, res, next) {
       link: `/goals/sheet/${updated.id}`,
     })
 
+    if (updated.user.email) {
+      await sendNotificationEmail({
+        to: updated.user.email,
+        eventType: 'GOAL_SHEET_UNLOCKED',
+        data: {
+          reason,
+          link: `${process.env.FRONTEND_URL || ''}/goals/sheet/${updated.id}`,
+        },
+      })
+    }
+
     return sendSuccess(res, updated)
   } catch (err) {
     return next(err)
@@ -471,6 +482,18 @@ export async function unlockGoal(req, res, next) {
       message: `Your goal "${goal.title}" has been unlocked by Admin.`,
       link: `/goals/sheet/${goal.goalSheetId}`,
     })
+
+    if (updated.user.email) {
+      await sendNotificationEmail({
+        to: updated.user.email,
+        eventType: 'GOAL_SHEET_UNLOCKED',
+        data: {
+          reason,
+          goalTitle: goal.title,
+          link: `${process.env.FRONTEND_URL || ''}/goals/sheet/${goal.goalSheetId}`,
+        },
+      })
+    }
 
     return sendSuccess(res, updated)
   } catch (err) {

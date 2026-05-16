@@ -244,3 +244,27 @@ export async function runEscalationCheck(req, res, next) {
     return next(err)
   }
 }
+
+export async function listEmailLogs(req, res, next) {
+  try {
+    const page = Math.max(1, parseInt(req.query.page) || 1)
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 50))
+    const skip = (page - 1) * limit
+
+    const [logs, total] = await Promise.all([
+      prisma.emailLog.findMany({
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      prisma.emailLog.count(),
+    ])
+
+    return sendSuccess(res, {
+      logs,
+      pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+    })
+  } catch (err) {
+    return next(err)
+  }
+}

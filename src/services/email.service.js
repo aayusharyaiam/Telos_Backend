@@ -1,4 +1,5 @@
 import { Resend } from 'resend'
+import prisma from '../config/prisma.js'
 
 let resend = null
 if (process.env.RESEND_API_KEY) {
@@ -6,35 +7,69 @@ if (process.env.RESEND_API_KEY) {
 }
 
 /**
- * Send an email via Resend. Gracefully skips if not configured.
- * @param {{ to: string, subject: string, html: string }} opts
+ * Send an email via Resend. Every attempt is logged to the EmailLog table
+ * so the content is visible in the admin panel regardless of delivery.
+ * @param {{ to: string, subject: string, html: string, eventType?: string }} opts
  */
-export async function sendEmail({ to, subject, html }) {
+export async function sendEmail({ to, subject, html, eventType }) {
+  let success = false
+  let error = null
+
   if (!resend || !process.env.RESEND_FROM_EMAIL) {
     console.log(`[Email] Skipped (Resend not configured): to=${to} subject="${subject}"`)
-    return null
+  } else {
+    try {
+      await resend.emails.send({
+        from: process.env.RESEND_FROM_EMAIL,
+        to,
+        subject,
+        html,
+      })
+      console.log(`[Email] Sent to ${to}: "${subject}"`)
+      success = true
+    } catch (err) {
+      error = err.message
+      console.error(`[Email] Failed to send to ${to}:`, err.message)
+    }
   }
 
+  // Persist every send attempt (success or fail) for audit visibility
   try {
-    const result = await resend.emails.send({
-      from: process.env.RESEND_FROM_EMAIL,
-      to,
-      subject,
-      html,
+    await prisma.emailLog.create({
+      data: {
+        to,
+        subject,
+        html,
+        eventType: eventType || 'UNKNOWN',
+        success,
+        error,
+      },
     })
-    console.log(`[Email] Sent to ${to}: "${subject}"`)
-    return result
-  } catch (err) {
-    console.error(`[Email] Failed to send to ${to}:`, err.message)
-    return null
+  } catch (logErr) {
+    console.error('[Email] Failed to persist email log:', logErr.message)
   }
+
+  return { success, error }
 }
 
 /**
  * Send a notification email for common Telos events.
+ * If the recipient has a `notificationEmail` set, that is used instead
+ * of their primary email. This lets admins point demo accounts at real
+ * inboxes without changing the Firebase login identity.
  * @param {{ to: string, eventType: string, data: object }} opts
  */
 export async function sendNotificationEmail({ to, eventType, data = {} }) {
+  // Resolve notificationEmail override if the recipient is a known user
+  try {
+    const user = await prisma.user.findUnique({ where: { email: to } })
+    if (user?.notificationEmail) {
+      to = user.notificationEmail
+    }
+  } catch {
+    // Silently fall through — if the lookup fails we just use the original `to`
+  }
+
   const templates = {
     GOAL_SHEET_SUBMITTED: {
       subject: 'Telos: Goal sheet submitted for review',
@@ -91,6 +126,27 @@ export async function sendNotificationEmail({ to, eventType, data = {} }) {
         <p style="margin-top:24px;color:#6b7280;font-size:12px">— Telos Goal Portal</p>
       </div>`,
     },
+    GOAL_SHEET_UNLOCKED: {
+      subject: 'Telos: Your goal sheet has been unlocked',
+      html: `<div style="font-family:sans-serif;max-width:500px;margin:0 auto">
+        <h2 style="color:#F59E0B">Goal Sheet Unlocked</h2>
+        <p>Your goal sheet has been unlocked by Admin. Please review the feedback and resubmit.</p>
+        ${data.goalTitle ? `<p>Goal: <strong>${data.goalTitle}</strong></p>` : ''}
+        <blockquote style="border-left:4px solid #F59E0B;padding-left:12px;color:#374151">${data.reason || ''}</blockquote>
+        <a href="${data.link || '#'}" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#F59E0B;color:white;text-decoration:none;border-radius:8px">View Goal Sheet</a>
+        <p style="margin-top:24px;color:#6b7280;font-size:12px">— Telos Goal Portal</p>
+      </div>`,
+    },
+    CHECKIN_COMPLETED: {
+      subject: `Telos: Your ${data.quarter || ''} check-in has been reviewed`,
+      html: `<div style="font-family:sans-serif;max-width:500px;margin:0 auto">
+        <h2 style="color:#10B981">Check-in Completed ✓</h2>
+        <p>Your <strong>${data.quarter || ''}</strong> check-in has been reviewed by your manager.</p>
+        ${data.goalTitle ? `<p>Goal: ${data.goalTitle}</p>` : ''}
+        <a href="${data.link || '#'}" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#10B981;color:white;text-decoration:none;border-radius:8px">View Check-in</a>
+        <p style="margin-top:24px;color:#6b7280;font-size:12px">— Telos Goal Portal</p>
+      </div>`,
+    },
   }
 
   const template = templates[eventType]
@@ -99,5 +155,5 @@ export async function sendNotificationEmail({ to, eventType, data = {} }) {
     return null
   }
 
-  return sendEmail({ to, subject: template.subject, html: template.html })
+  return sendEmail({ to, subject: template.subject, html: template.html, eventType })
 }

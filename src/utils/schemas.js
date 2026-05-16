@@ -159,6 +159,7 @@ export const userSchemas = {
       department: z.string().optional().nullable(),
       reportingManagerId: z.string().optional().nullable(),
       isActive: z.boolean().optional(),
+      notificationEmail: z.string().email().optional().nullable(),
     }),
     params: idParam,
     query: z.any(),

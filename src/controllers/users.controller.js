@@ -110,6 +110,13 @@ export async function updateUser(req, res, next) {
         data.reportingManagerId = newMgr
       }
     }
+    if (req.body.notificationEmail !== undefined) {
+      const newVal = req.body.notificationEmail || null
+      if (newVal !== existing.notificationEmail) {
+        auditEntries.push({ field: 'notificationEmail', old: existing.notificationEmail || '-', new: newVal || '-' })
+        data.notificationEmail = newVal
+      }
+    }
     if (req.body.isActive !== undefined) {
       const newActive = Boolean(req.body.isActive)
       if (newActive !== existing.isActive) {

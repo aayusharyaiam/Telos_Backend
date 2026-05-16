@@ -1,5 +1,8 @@
 import prisma from '../config/prisma.js'
 import { computeScore } from '../services/score.service.js'
+import { createNotification } from '../services/notification.service.js'
+import { sendNotificationEmail } from '../services/email.service.js'
+import { getCurrentWindowStatus } from '../utils/cycleHelper.js'
 import { ForbiddenError, NotFoundError, ValidationError } from '../utils/errors.js'
 import { sendSuccess } from '../utils/response.js'
 
@@ -243,7 +246,7 @@ export async function managerCheckin(req, res, next) {
           include: {
             goalSheet: {
               include: {
-                user: { select: { id: true, reportingManagerId: true } },
+                user: { select: { id: true, name: true, email: true, reportingManagerId: true } },
               },
             },
           },
@@ -267,7 +270,30 @@ export async function managerCheckin(req, res, next) {
         checkinCompleted: true,
         checkinCompletedAt: new Date(),
       },
+      include: {
+        goal: { select: { title: true, goalSheet: { select: { id: true } } } },
+      },
     })
+
+    const employee = checkin.goal.goalSheet.user
+    await createNotification({
+      userId: employee.id,
+      title: 'Check-in Completed',
+      message: `Your ${checkin.quarter} check-in has been reviewed by your manager.`,
+      link: `/goals/sheet/${checkin.goal.goalSheetId}/checkin?quarter=${checkin.quarter}`,
+    })
+
+    if (employee.email) {
+      await sendNotificationEmail({
+        to: employee.email,
+        eventType: 'CHECKIN_COMPLETED',
+        data: {
+          quarter: checkin.quarter,
+          goalTitle: checkin.goal.title,
+          link: `${process.env.FRONTEND_URL || ''}/goals/sheet/${checkin.goal.goalSheetId}/checkin?quarter=${checkin.quarter}`,
+        },
+      })
+    }
 
     return sendSuccess(res, updated)
   } catch (err) {

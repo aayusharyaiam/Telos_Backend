@@ -74,6 +74,10 @@ model User {
   email              String    @unique
   name               String
   phone              String?
+  // If set, email notifications are delivered here instead of `email`.
+  // This allows admins to point demo accounts at real inboxes for testing
+  // without changing the Firebase login identity of the user.
+  notificationEmail  String?
   role               Role      @default(EMPLOYEE)
   department         String?
   isActive           Boolean   @default(true)
@@ -280,4 +284,16 @@ model Escalation {
 
   createdAt  DateTime         @default(now())
   updatedAt  DateTime         @updatedAt
+}
+
+model EmailLog {
+  id        String   @id @default(cuid())
+  to        String
+  subject   String
+  html      String
+  eventType String
+  success   Boolean  @default(false)
+  error     String?
+
+  createdAt DateTime @default(now())
 }
