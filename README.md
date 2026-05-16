@@ -1,5 +1,11 @@
 # Telos AtomQuest
 
+<div align="center">
+  <img src="../Telos_Frontend/public/logo-with-name.png" alt="Telos AtomQuest Logo" width="400" />
+  <br/><br/>
+  <img src="../Telos_Frontend/public/logo-mark.png" alt="Telos AtomQuest Logo Mark" width="80" />
+</div>
+
 Full-stack goal setting and performance tracking portal. Covers employee goal-sheet creation → manager approval with diff view → quarterly achievement check-ins → shared goals → notifications → admin controls → audit trail → escalation engine → email notifications.
 
 ---
