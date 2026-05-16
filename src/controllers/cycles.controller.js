@@ -74,11 +74,44 @@ async function notifyCheckinWindowOpened({ phase, window, oldWindow }) {
 
 export async function listCycles(req, res, next) {
   try {
+    const includeArchived = req.query.includeArchived === 'true'
+    const where = includeArchived ? {} : { isArchived: false }
     const cycles = await prisma.cycle.findMany({
+      where,
       include: includeCycle(),
       orderBy: { createdAt: 'desc' },
     })
     return sendSuccess(res, cycles)
+  } catch (err) {
+    return next(err)
+  }
+}
+
+export async function archiveCycle(req, res, next) {
+  try {
+    const existing = await prisma.cycle.findUnique({ where: { id: req.params.id } })
+    if (!existing) throw new NotFoundError('Cycle')
+
+    const cycle = await prisma.cycle.update({
+      where: { id: req.params.id },
+      data: { isArchived: true },
+      include: includeCycle(),
+    })
+
+    if (req.user) {
+      await prisma.auditLog.create({
+        data: {
+          userId: req.user.id,
+          action: 'CYCLE_ARCHIVED',
+          fieldChanged: 'isArchived',
+          oldValue: 'false',
+          newValue: 'true',
+          reason: `Archived cycle ${existing.name}`,
+        },
+      })
+    }
+
+    return sendSuccess(res, cycle)
   } catch (err) {
     return next(err)
   }

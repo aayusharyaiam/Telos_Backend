@@ -1,3 +1,4 @@
+import XLSX from 'xlsx'
 import prisma from '../config/prisma.js'
 import admin from '../config/firebase.js'
 import { NotFoundError, ValidationError } from '../utils/errors.js'
@@ -179,6 +180,83 @@ export async function getUserReports(req, res, next) {
       orderBy: { updatedAt: 'desc' },
     })
     return sendSuccess(res, reports)
+  } catch (err) {
+    return next(err)
+  }
+}
+
+export async function importUsers(req, res, next) {
+  try {
+    const csvText = req.body.csv
+    if (!csvText || typeof csvText !== 'string') {
+      throw new ValidationError('CSV text is required in the "csv" field')
+    }
+
+    const workbook = XLSX.read(csvText, { type: 'string' })
+    const sheet = workbook.Sheets[workbook.SheetNames[0]]
+    const rows = XLSX.utils.sheet_to_json(sheet)
+
+    if (!rows.length) {
+      throw new ValidationError('CSV is empty')
+    }
+
+    const created = []
+    const errors = []
+    const ROLES_SET = new Set(['EMPLOYEE', 'MANAGER', 'ADMIN'])
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i]
+      const rowNum = i + 2
+
+      const name = String(row.name || '').trim()
+      const email = String(row.email || '').trim().toLowerCase()
+      const password = String(row.password || '').trim()
+      const role = String(row.role || 'EMPLOYEE').trim().toUpperCase()
+      const department = row.department ? String(row.department).trim() : null
+
+      if (!name || !email || !password) {
+        errors.push({ row: rowNum, error: 'name, email, and password are required' })
+        continue
+      }
+
+      if (!ROLES_SET.has(role)) {
+        errors.push({ row: rowNum, error: `Invalid role "${role}". Must be EMPLOYEE, MANAGER, or ADMIN` })
+        continue
+      }
+
+      if (password.length < 6) {
+        errors.push({ row: rowNum, error: 'Password must be at least 6 characters' })
+        continue
+      }
+
+      try {
+        const fbUser = await admin.auth().createUser({ email, password, displayName: name })
+        const user = await prisma.user.create({
+          data: {
+            firebaseUid: fbUser.uid,
+            email,
+            name,
+            role,
+            department,
+          },
+        })
+        created.push({ row: rowNum, name, email, role })
+      } catch (err) {
+        errors.push({ row: rowNum, error: err.message })
+      }
+    }
+
+    if (req.user && created.length) {
+      await prisma.auditLog.create({
+        data: {
+          userId: req.user.id,
+          action: 'BULK_USER_IMPORT',
+          newValue: `Imported ${created.length} users via CSV`,
+        },
+      })
+    }
+
+    return sendSuccess(res, { created: created.length, errors }, created.length ? 201 : 200)
   } catch (err) {
     return next(err)
   }

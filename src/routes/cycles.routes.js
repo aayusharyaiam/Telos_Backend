@@ -3,6 +3,7 @@ import { authenticate } from '../middleware/authenticate.js'
 import { authorize } from '../middleware/authorize.js'
 import { validate } from '../middleware/validate.js'
 import {
+  archiveCycle,
   createCycle,
   getActiveCycle,
   getCycleWindows,
@@ -23,6 +24,8 @@ router.post('/', authenticate, authorize('ADMIN'), validate(cycleSchemas.create)
 router.patch('/:id', authenticate, authorize('ADMIN'), validate(cycleSchemas.update), updateCycle)
 
 router.get('/:id/windows', authenticate, authorize('EMPLOYEE', 'MANAGER', 'ADMIN'), getCycleWindows)
+
+router.patch('/:id/archive', authenticate, authorize('ADMIN'), archiveCycle)
 
 router.patch('/:id/windows/:phase', authenticate, authorize('ADMIN'), validate(cycleSchemas.updateWindow), updateCycleWindow)
 

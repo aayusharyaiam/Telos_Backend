@@ -6,6 +6,7 @@ import {
   createUser,
   deactivateUser,
   getUserReports,
+  importUsers,
   listUsers,
   updateUser,
 } from '../controllers/users.controller.js'
@@ -20,6 +21,8 @@ router.post('/', authenticate, authorize('ADMIN'), validate(userSchemas.create),
 router.patch('/:id', authenticate, authorize('ADMIN'), validate(userSchemas.update), updateUser)
 
 router.delete('/:id', authenticate, authorize('ADMIN'), validate(userSchemas.remove), deactivateUser)
+
+router.post('/import', authenticate, authorize('ADMIN'), importUsers)
 
 router.get('/:id/reports', authenticate, authorize('MANAGER', 'ADMIN'), validate(userSchemas.reports), getUserReports)
 
