@@ -13,7 +13,7 @@
     "test": "node --test",
     "seed": "node prisma/seed.js",
     "seed:users": "node prisma/seed-users.js",
-    "seed:all": "node prisma/seed.js && node prisma/seed-users.js"
+    "seed:all": "node prisma/seed.js && node prisma/seed-users.js && node prisma/seed-data.js"
   },
   "prisma": {
     "schema": "src/prisma/schema.prisma",
