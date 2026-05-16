@@ -5,6 +5,12 @@ import { buildAchievementSheetWhere, buildCompletionSummary } from '../services/
 import { sendSuccess } from '../utils/response.js'
 
 const QUARTERS = ['Q1', 'Q2', 'Q3', 'Q4']
+const CHECKIN_PHASE_TO_QUARTER = {
+  Q1_CHECKIN: 'Q1',
+  Q2_CHECKIN: 'Q2',
+  Q3_CHECKIN: 'Q3',
+  Q4_CHECKIN: 'Q4',
+}
 
 async function getActiveCycleId() {
   const cycle = await prisma.cycle.findFirst({
@@ -42,6 +48,27 @@ function formatActualValue(value) {
   if (value === null || value === undefined) return null
   if (value instanceof Date) return value.toISOString().slice(0, 10)
   return value
+}
+
+function isWindowOpen(window, now = new Date()) {
+  if (window.status === 'FORCE_OPEN') return true
+  if (window.status === 'FORCE_CLOSED') return false
+  return window.status === 'OPEN' && now >= window.opensAt && now <= window.closesAt
+}
+
+function resolveDashboardQuarter(activeCycle) {
+  const checkinWindows = activeCycle?.windows
+    ?.filter((window) => CHECKIN_PHASE_TO_QUARTER[window.phase])
+    .sort((a, b) => new Date(a.opensAt) - new Date(b.opensAt)) || []
+
+  const openWindow = checkinWindows.find((window) => isWindowOpen(window))
+  if (openWindow) return CHECKIN_PHASE_TO_QUARTER[openWindow.phase]
+
+  const now = new Date()
+  const latestStarted = [...checkinWindows]
+    .reverse()
+    .find((window) => new Date(window.opensAt) <= now)
+  return CHECKIN_PHASE_TO_QUARTER[latestStarted?.phase] || 'Q1'
 }
 
 function resolveLatestProgressScore(goal) {
@@ -315,9 +342,11 @@ export async function getAdminSummary(req, res, next) {
   try {
     const activeCycle = await prisma.cycle.findFirst({
       where: { isActive: true },
+      include: { windows: true },
       orderBy: { createdAt: 'desc' },
     })
     const cycleId = activeCycle?.id
+    const dashboardQuarter = resolveDashboardQuarter(activeCycle)
 
     const [
       totalActiveUsers,
@@ -337,16 +366,15 @@ export async function getAdminSummary(req, res, next) {
       }),
     ])
 
-    // Q2 completion rate
-    let q2CompletedCount = 0
-    let q2Total = 0
+    let selectedCompletedCount = 0
+    let selectedTotal = 0
     if (cycleId) {
       const approvedSheets = await prisma.goalSheet.findMany({
         where: { cycleId, status: 'APPROVED' },
-        include: { goals: { include: { checkins: { where: { quarter: 'Q2' } } } } },
+        include: { goals: { include: { checkins: { where: { quarter: dashboardQuarter } } } } },
       })
-      q2Total = approvedSheets.length
-      q2CompletedCount = approvedSheets.filter((s) =>
+      selectedTotal = approvedSheets.length
+      selectedCompletedCount = approvedSheets.filter((s) =>
         s.goals.length > 0 &&
         s.goals.every((g) => g.checkins.some((c) => c.checkinCompleted))
       ).length
@@ -358,8 +386,9 @@ export async function getAdminSummary(req, res, next) {
       totalGoalSheets,
       submittedCount,
       approvedCount,
-      q2CompletedCount,
-      q2CompletionRate: q2Total ? Math.round((q2CompletedCount / q2Total) * 100) : 0,
+      dashboardQuarter,
+      selectedCompletedCount,
+      selectedCompletionRate: selectedTotal ? Math.round((selectedCompletedCount / selectedTotal) * 100) : 0,
       pendingEscalations,
       recentAuditCount,
     })

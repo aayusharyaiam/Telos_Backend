@@ -43,7 +43,7 @@ Telos AtomQuest is a full-stack goal setting and performance tracking portal. It
 |   |-- scripts
 |   |   |-- setup-db.js
 |   |-- test
-|   |   |-- business-rules.test.js    # 18 unit tests
+|   |   |-- business-rules.test.js    # 14 unit tests
 |   |-- package.json
 |-- Telos_Frontend
 |   |-- src
@@ -157,7 +157,7 @@ Telos AtomQuest is a full-stack goal setting and performance tracking portal. It
   - `Approved`
   - `Returned`
 - Managers can review submitted sheets.
-- Managers can adjust goal weightage while a sheet is submitted.
+- Managers can adjust goal targets and weightage inline while a sheet is submitted.
 - **Diff view**: edited goals are highlighted with yellow background; original values shown with strikethrough; collapsible "Show diff view" panel.
 - Managers can approve submitted sheets.
 - Managers can return submitted sheets with a required reason (min 20 chars).
@@ -272,6 +272,7 @@ Edge cases handled:
 ### Reporting and Analytics
 
 - Completion dashboard shows quarter selector and Q1-Q4 row statuses.
+- Admin command center derives its completion KPI from the currently open/latest check-in window instead of a hardcoded quarter.
 - Achievement report supports JSON, CSV, XLSX.
 - Filters: `cycleId`, `quarter`, `managerId`, `employeeId`, `status`, `department`, `employeeSearch`.
 - Managers scoped to their own team.
@@ -299,6 +300,30 @@ Edge cases handled:
 - **Editable profile**: users can update their own name, email, phone, and department.
 - Email changes sync to Firebase Auth automatically.
 - Displays: name, email, phone, role, department, account status.
+
+## Hackathon Problem Statement Coverage
+
+Implemented must-have coverage:
+- Employee goal sheet creation with thrust area, title, description, UoM, target, and weightage.
+- Backend validation for exactly 100 percent total weightage, minimum 10 percent per goal, maximum 8 goals, and at least one goal before submission.
+- Manager L1 approval workflow with inline target/weightage edits, return-for-rework, approval locking, and visible diff review.
+- Admin unlock flow for approved/locked sheets and individual locked goals.
+- Shared goals pushed by admin/manager, recipient weightage-only edits, read-only shared title/target, primary-owner achievement sync.
+- Quarterly achievement entry with actual achievement/date, goal status, employee notes, manager comments, and completion marking.
+- Score formulas for Numeric Min/Max, Percentage Min/Max, Timeline, and Zero-based UoMs.
+- Admin-configurable cycle windows for goal setting and Q1-Q4 check-ins.
+- Three role model: Employee, Manager, Admin/HR, with role-based routes and backend authorization.
+- Achievement export in CSV/XLSX, completion dashboard, audit trail, escalation module, and analytics dashboards.
+
+Implemented bonus coverage:
+- Email notifications through Resend for key events when configured.
+- Rule-based escalation module with in-app notifications, email hooks, manual run, optional cron, and admin resolution log.
+- Analytics for trends, goal distribution, and manager effectiveness.
+
+Known gaps from the problem statement:
+- Microsoft Entra ID / Azure AD SSO is not implemented; Firebase Email/Password Auth is currently used.
+- Automatic org hierarchy sync from Azure AD is not implemented; hierarchy is managed in the admin user module or seeded data.
+- Microsoft Teams bot/adaptive-card notifications and Teams deep links are not implemented; in-app notifications and email links are implemented.
 
 ## Middleware Architecture
 
@@ -480,7 +505,7 @@ See `FINAL_REPORT.md` for the complete test suite (20+ detailed test cases acros
 
 **Manager Approval:**
 1. Login as `manager@telos.demo` → `/manager/team`
-2. Review submitted sheet, adjust a weightage → yellow diff highlight
+2. Review submitted sheet, adjust a target or weightage → yellow diff highlight
 3. Approve or return with reason (min 20 chars)
 
 **Quarterly Check-ins:**
