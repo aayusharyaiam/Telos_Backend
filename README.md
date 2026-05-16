@@ -1,564 +1,137 @@
 # Telos AtomQuest
 
-Telos AtomQuest is a full-stack goal setting and performance tracking portal. It covers the complete flow from Firebase login, employee goal-sheet creation, manager approval, quarterly achievement check-ins, shared goals, notifications, reporting, admin controls, audit logs, and escalations.
+Full-stack goal setting and performance tracking portal. Employee goal-sheet creation → manager approval → quarterly check-ins → shared goals → notifications → admin controls → audit logs → escalations.
 
-## Project Structure
+## Quick Start
 
-```txt
-|-- Telos_Backend
-|   |-- src
-|   |   |-- app.js                    # Express entry point
-|   |   |-- config
-|   |   |   |-- firebase.js           # Firebase Admin init
-|   |   |   |-- prisma.js             # PrismaClient singleton
-|   |   |-- controllers               # Request handlers
-|   |   |-- jobs                      # node-cron escalation job
-|   |   |-- middleware
-|   |   |   |-- authenticate.js       # Firebase token verification
-|   |   |   |-- authorize.js          # Role-based access control
-|   |   |   |-- validate.js           # Zod input validation wrapper
-|   |   |   |-- checkNotLocked.js     # Locked-goal guard
-|   |   |   |-- auditLogger.js        # Post-edit change detection
-|   |   |   |-- errorHandler.js       # Global error handler
-|   |   |-- prisma
-|   |   |   |-- schema.prisma         # 12 models, 8 enums
-|   |   |   |-- migrations
-|   |   |-- routes                    # 11 route groups
-|   |   |-- services
-|   |   |   |-- score.service.js
-|   |   |   |-- goalValidation.service.js
-|   |   |   |-- notification.service.js
-|   |   |   |-- email.service.js
-|   |   |   |-- escalation.service.js
-|   |   |   |-- reportFilters.service.js
-|   |   |-- utils
-|   |   |   |-- constants.js          # Shared enums/constants
-|   |   |   |-- cycleHelper.js        # Window status helpers
-|   |   |   |-- schemas.js            # Zod validation schemas
-|   |   |   |-- errors.js             # Custom error classes
-|   |   |   |-- response.js           # Response envelope helpers
-|   |-- prisma
-|   |   |-- seed.js
-|   |   |-- seed-users.js
-|   |-- scripts
-|   |   |-- setup-db.js
-|   |-- test
-|   |   |-- business-rules.test.js    # 14 unit tests
-|   |-- package.json
-|-- Telos_Frontend
-|   |-- src
-|   |   |-- api                       # 11 API wrappers
-|   |   |-- components
-|   |   |   |-- layout
-|   |   |   |   |-- AppShell.jsx
-|   |   |   |   |-- Navbar.jsx
-|   |   |   |   |-- Sidebar.jsx
-|   |   |   |   |-- NotificationDrawer.jsx
-|   |   |   |   |-- PageHeader.jsx
-|   |   |   |-- goals
-|   |   |   |   |-- WeightageBar.jsx
-|   |   |   |   |-- GoalCard.jsx
-|   |   |   |   |-- ProgressScoreBadge.jsx
-|   |   |   |-- shared
-|   |   |       |-- Badge.jsx
-|   |   |       |-- ConfirmModal.jsx
-|   |   |       |-- Modal.jsx
-|   |   |       |-- Table.jsx
-|   |   |       |-- EmptyState.jsx
-|   |   |       |-- FullScreenLoader.jsx
-|   |   |       |-- StatCard.jsx
-|   |   |-- context
-|   |   |-- firebase
-|   |   |-- hooks
-|   |   |   |-- useAuth.js
-|   |   |   |-- useGoalSheet.js
-|   |   |   |-- useCurrentCycle.js
-|   |   |   |-- useWindowStatus.js
-|   |   |-- pages
-|   |   |   |-- auth
-|   |   |   |-- employee
-|   |   |   |-- manager
-|   |   |   |-- admin (9 pages)
-|   |   |   |-- shared
-|   |   |       |-- SettingsPage.jsx
-|   |   |-- routes
-|   |   |-- utils
-|   |-- package.json
-|-- prd.md
-|-- trd.md
-|-- README.md
-```
+### 1. Environment
 
-## Tech Stack
-
-### Backend
-
-- Node.js with Express
-- Prisma ORM
-- Supabase Postgres
-- Firebase Admin for token verification and user creation
-- Resend for email notifications
-- node-cron for optional scheduled escalation checks
-- xlsx for Excel export
-- Zod for input validation
-- Helmet, CORS, and express-rate-limit
-
-### Frontend
-
-- React 19
-- Vite
-- React Router
-- Tailwind CSS v4 (CSS-based theme in `index.css`)
-- Firebase Email/Password Auth
-- Axios API client
-- React Hook Form
-- react-hot-toast
-- Heroicons
-- Recharts
-- date-fns
-
-## Main Capabilities
-
-### Authentication and Routing
-
-- Firebase Email/Password login.
-- Backend verifies Firebase ID tokens through Firebase Admin.
-- App user is synced from Supabase through the auth API.
-- Role-based routing:
-  - `EMPLOYEE` -> `/goals`
-  - `MANAGER` -> `/manager/team`
-  - `ADMIN` -> `/admin`
-- Inactive users are blocked by backend auth middleware.
-
-### Employee Goal Sheet Lifecycle
-
-- Employee can create an active-cycle goal sheet.
-- Employee can add, edit, and delete personal goals while the sheet is `DRAFT` or `RETURNED`.
-- Goal validation (enforced by Zod schemas + backend):
-  - At least one goal before submission.
-  - Maximum 8 goals per cycle.
-  - Minimum 10 percent weightage per goal.
-  - Total weightage must equal exactly 100 percent before submission.
-  - Title, thrust area, UoM, target, and date values are validated server-side.
-- Weightage bar shows real-time health with remaining percentage (e.g. "72% allocated — 28% remaining", green at 100%, red if over).
-- Weightage >90% triggers a warning: "leaves very little room for other goals".
-- Auto-save: draft form backed up to localStorage every 30s and on blur.
-- Employee can submit goal sheet for approval.
-- Submitted sheets cannot be edited by employee until returned.
-- Approved goals are locked (checked by `checkNotLocked` middleware).
-
-### Manager Approval Workflow
-
-- Managers see all direct reports, including employees without a goal sheet.
-- Direct report statuses:
-  - `Not Started`
-  - `Draft`
-  - `Submitted`
-  - `Approved`
-  - `Returned`
-- Managers can review submitted sheets.
-- Managers can adjust goal targets and weightage inline while a sheet is submitted.
-- **Diff view**: edited goals are highlighted with yellow background; original values shown with strikethrough; collapsible "Show diff view" panel.
-- Managers can approve submitted sheets.
-- Managers can return submitted sheets with a required reason (min 20 chars).
-- Approve and return actions use confirmation modals.
-- Notifications and emails are created for submit, approve, and return flows.
-
-### Quarterly Check-ins
-
-- Employee and manager check-in pages support `Q1`, `Q2`, `Q3`, and `Q4`.
-- Quarter selectors reload quarter-specific records.
-- Check-in editability respects cycle-window status.
-- Employees can save actual achievement or actual date, status, and notes.
-- **"Awaiting owner update" indicator** shown for shared goals whose primary owner hasn't entered data.
-- Managers can add comments and mark check-ins complete.
-- Shared-goal actuals sync into check-in views.
-- Progress score is computed server-side.
-
-### Score Computation
-
-Backend score logic lives in:
+**Backend `.env`:** All values provided in the submission. Key variables:
 
 ```txt
-Telos_Backend/src/services/score.service.js
-```
-
-Frontend mirror (same formulas):
-
-```txt
-Telos_Frontend/src/utils/scoreComputer.js
-```
-
-Supported UoM types:
-
-- `NUMERIC_MIN` — Higher is better, capped at 100%
-- `NUMERIC_MAX` — Lower is better, capped at 100%
-- `PERCENTAGE_MIN` — Higher is better, capped at 100%
-- `PERCENTAGE_MAX` — Lower is better, capped at 100%
-- `TIMELINE` — On-time = 100%, late = 0%
-- `ZERO` — Zero = 100%, anything else = 0%
-
-Edge cases handled:
-- Division-by-zero guard returns `null` (displayed as "N/A")
-- Null actuals return `null` (displayed as "N/A")
-- Scores capped at 100 for all numeric types
-
-### Shared Goals
-
-- Managers and admins can create shared goals.
-- Recipients can include active `EMPLOYEE` and `MANAGER` users.
-- Admins can push shared goals to all active non-admin users.
-- Managers can push shared goals to their direct reports.
-- A shared goal creates linked goal rows in recipient active-cycle goal sheets.
-- Shared linked goals show a `Shared` badge.
-- Employees cannot delete shared linked goals.
-- Employees can rebalance shared goal weightage.
-- Shared target data is read-only for employees.
-- Shared goals support a persisted `primaryOwnerId`.
-- The UI allows primary owner selection from selected recipients.
-- Shared actual updates are quarter-aware and upsert linked check-in records for the selected quarter.
-- Shared actuals and scores appear in check-in views and exports.
-- Shared goal pushes create in-app notifications and Resend emails when email is configured.
-
-### Notifications
-
-- Notification drawer extracted as a standalone `NotificationDrawer` component.
-- Navbar bell shows unread count badge.
-- Drawer polls every 30 seconds while logged in.
-- Notifications list real backend records.
-- Mark all read supported.
-- Clicking a notification with a link marks it read and navigates to the linked page.
-- Routes: `GET /api/v1/notifications`, `PATCH /:id/read`, `PATCH /read-all`
-
-### Admin User Management
-
-- Admins can view users from Supabase.
-- Admins can create users individually in Firebase and Supabase.
-- Admins can **bulk import users from CSV** — paste CSV text or upload a `.csv` file with columns: `name, email, password, role, department`. Parsed with `xlsx`.
-- Admins can update roles.
-- Admins can activate and deactivate users.
-- Activate/deactivate uses confirmation modal.
-- User creation, import, and updates create audit logs.
-- Admins can set a **notification email** per user — a separate `notificationEmail` field on the User model. When set, email notifications are delivered to this address instead of the user's primary login email. This lets demo accounts (`user@telos.demo`) point at real inboxes without affecting Firebase authentication.
-
-### Cycle and Window Management
-
-- Admins can view all cycles (active and past), their windows, and archived cycles.
-- Admins can force open or force close:
-  - Goal Setting
-  - Q1 Check-in through Q4 Check-in
-- Force open/close uses confirmation modal.
-- Admins can **archive past cycles** — hidden from all views by default; archived cycles can be toggled visible via "Show archived" button.
-- Opening a check-in window creates in-app notifications and sends emails when Resend is configured.
-- Employee dashboard shows an open-check-in banner with deadline and deep link.
-- Helper functions in `src/utils/cycleHelper.js`: `getCurrentWindowStatus`, `getActiveCycle`, `getWindow`.
-
-### Thrust Areas
-
-- Admins can view, add, rename, activate, and deactivate thrust areas.
-- Goal creation forms load active thrust areas from the backend.
-- Frontend falls back to local constants if thrust area API loading fails.
-
-### Goal Unlock
-
-- Admins can unlock an entire approved goal sheet.
-- Admins can unlock a specific locked goal.
-- Per-goal unlock: `PATCH /api/v1/goals/:goalId/unlock`
-- Sheet-level unlock: `PATCH /api/v1/goal-sheets/:id/unlock`
-- Unlocks require a reason.
-- Unlock actions create audit logs.
-- Unlock actions notify the employee.
-- Per-goal unlock returns the sheet to `RETURNED` so the employee can revise and resubmit.
-
-### Reporting and Analytics
-
-- Completion dashboard shows quarter selector and Q1-Q4 row statuses.
-- Admin command center derives its completion KPI from the currently open/latest check-in window instead of a hardcoded quarter.
-- Achievement report supports JSON, CSV, XLSX.
-- Filters: `cycleId`, `quarter`, `managerId`, `employeeId`, `status`, `department`, `employeeSearch`.
-- Managers scoped to their own team.
-- Admins can see all organization data.
-- Analytics page includes overview cards, quarter trend chart (Recharts), goal distribution chart, export controls.
-
-### Email Logs
-
-- Every email send attempt (success or failure) is persisted in the `EmailLog` table.
-- Captures: `to`, `subject`, `html` body, `eventType`, delivery `success` flag, and `error` message.
-- Admin page `/admin/email-logs` shows paginated logs with expandable HTML preview.
-- All 8 email event types (`GOAL_SHEET_SUBMITTED`, `GOAL_SHEET_APPROVED`, `GOAL_SHEET_RETURNED`, `GOAL_SHEET_UNLOCKED`, `SHARED_GOAL_PUSHED`, `CHECKIN_WINDOW_OPENED`, `CHECKIN_COMPLETED`, `ESCALATION`) are logged regardless of Resend delivery status.
-- Allows judges and admins to inspect email content even when demo email addresses are unreachable.
-- API: `GET /api/v1/admin/email-logs?page=1&limit=50` (admin only, paginated).
-
-### Audit Trail
-
-- Admin audit page shows logs with action, field changed, old/new values, reason, user, goal, timestamp.
-- Filters: action type, start date, end date.
-- Key actions: `USER_CREATED`, `USER_ROLE_CHANGED`, `GOAL_UNLOCKED`, `CYCLE_WINDOW_UPDATED`, `THRUST_AREA_CREATED`, `ESCALATION_RESOLVED`, etc.
-
-### Escalations
-
-- Admins can create, enable, disable, and list escalation rules.
-- Admins can run escalation checks manually.
-- Optional cron job runs when `ENABLE_ESCALATION_JOB=true`.
-- States: `PENDING` → `ESCALATED` → `RESOLVED`.
-- Patterns: goal setting overdue, approval overdue, employee check-in overdue, manager check-in review overdue.
-- Escalations create in-app notifications and Resend emails when configured.
-
-### Settings / Profile
-
-- Shared `/settings` page available to all roles.
-- **Editable profile**: users can update their own name, email, phone, and department.
-- Email changes sync to Firebase Auth automatically.
-- Displays: name, email, phone, role, department, account status.
-
-## Hackathon Problem Statement Coverage
-
-Implemented must-have coverage:
-- Employee goal sheet creation with thrust area, title, description, UoM, target, and weightage.
-- Backend validation for exactly 100 percent total weightage, minimum 10 percent per goal, maximum 8 goals, and at least one goal before submission.
-- Manager L1 approval workflow with inline target/weightage edits, return-for-rework, approval locking, and visible diff review.
-- Admin unlock flow for approved/locked sheets and individual locked goals.
-- Shared goals pushed by admin/manager, recipient weightage-only edits, read-only shared title/target, primary-owner achievement sync.
-- Quarterly achievement entry with actual achievement/date, goal status, employee notes, manager comments, and completion marking.
-- Score formulas for Numeric Min/Max, Percentage Min/Max, Timeline, and Zero-based UoMs.
-- Admin-configurable cycle windows for goal setting and Q1-Q4 check-ins.
-- Three role model: Employee, Manager, Admin/HR, with role-based routes and backend authorization.
-- Achievement export in CSV/XLSX, completion dashboard, audit trail, escalation module, and analytics dashboards.
-
-Implemented bonus coverage:
-- Email notifications through Resend for key events when configured.
-- Rule-based escalation module with in-app notifications, email hooks, manual run, optional cron, and admin resolution log.
-- Analytics for trends, goal distribution, and manager effectiveness.
-
-Known gaps from the problem statement:
-- Microsoft Entra ID / Azure AD SSO is not implemented; Firebase Email/Password Auth is currently used.
-- Automatic org hierarchy sync from Azure AD is not implemented; hierarchy is managed in the admin user module or seeded data.
-- Microsoft Teams bot/adaptive-card notifications and Teams deep links are not implemented; in-app notifications and email links are implemented.
-
-## Middleware Architecture
-
-All routes are protected by a middleware chain:
-
-1. **`authenticate`** — Verifies Firebase Bearer token, looks up user in DB.
-2. **`authorize`** — Checks user role against allowed roles for the route.
-3. **`validate`** (Zod) — Parses request body/params/query against schemas from `src/utils/schemas.js`.
-4. **`checkNotLocked`** — Guards goal PATCH/DELETE routes against locked goals.
-5. **`auditLogger`** — Captures post-edit changes on goal modifications.
-
-## Routes
-
-### Frontend Routes
-
-```txt
-/login                              # Login with demo credentials
-/goals                              # Employee: My Goals dashboard
-/goals/sheet/:sheetId               # Employee: Goal sheet editor
-/goals/sheet/:sheetId/checkin       # Employee: Quarterly check-in
-/manager/team                       # Manager: Team overview
-/manager/approve/:sheetId           # Manager: Approval review with diff view
-/manager/checkin/:employeeId        # Manager: Check-in per employee
-/manager/shared-goals               # Manager: Shared goals management
-/admin                              # Admin: Command center
-/admin/users                        # Admin: User management
-/admin/cycles                       # Admin: Cycle/window config
-/admin/audit                        # Admin: Audit trail
-/admin/completion                   # Admin: Completion dashboard
-/admin/analytics                    # Admin: Analytics & export
-/admin/thrust-areas                 # Admin: Thrust area management
-/admin/escalations                  # Admin: Escalation rules & log
-/admin/unlock                       # Admin: Goal unlock (sheet + per-goal)
-/settings                           # All roles: Profile & settings
-```
-
-### Backend Route Prefixes
-
-All API routes mounted under `/api/v1`:
-
-```txt
-/health
-/api/v1/auth                   # POST /sync, GET /me, PATCH /me (profile edit)
-/api/v1/goals
-/api/v1/goal-sheets
-/api/v1/checkins
-/api/v1/users                  # POST /import (CSV bulk import)
-/api/v1/cycles                 # PATCH /:id/archive
-/api/v1/notifications
-/api/v1/reports
-/api/v1/shared-goals
-/api/v1/admin
-```
-
-## Database Model Overview
-
-Main Prisma models (12):
-
-- `User` — with `phone`, self-referencing `reportingManagerId` for hierarchy
-- `Cycle` — active cycle tracking
-- `CycleWindow` — per-phase window with force-override status
-- `GoalSheet` — unique per `userId` + `cycleId`
-- `Goal` — with `isLocked`, `isShared`, `parentGoalId`; includes quarter milestone targets (`q1Target`–`q4Target`)
-- `SharedGoal` — with `primaryOwnerId` for achievement sync
-- `CheckinRecord` — unique per `goalId` + `quarter`
-- `Notification`
-- `AuditLog`
-- `EmailLog`
-- `ThrustArea`
-- `EscalationRule`
-- `Escalation`
-
-## Environment Variables
-
-Do not commit real `.env` values. Both `.env` files are in `.gitignore`.
-
-### Backend `.env` (`Telos_Backend/.env`)
-
-Required:
-
-```txt
-DATABASE_URL=
-DIRECT_URL=
-FIREBASE_PROJECT_ID=
-FIREBASE_CLIENT_EMAIL=
-FIREBASE_PRIVATE_KEY=
+DATABASE_URL, DIRECT_URL          # Supabase Postgres
+FIREBASE_PROJECT_ID, *_EMAIL, *_PRIVATE_KEY  # Firebase Admin
+RESEND_API_KEY, RESEND_FROM_EMAIL # Configured — emails active
 FRONTEND_URL=http://localhost:5173
 PORT=3000
 ```
 
-Optional:
+**Frontend `.env`:** Firebase config values provided in the submission.
 
-```txt
-RESEND_API_KEY=
-RESEND_FROM_EMAIL=
-ENABLE_ESCALATION_JOB=false
-SKIP_FIREBASE_AUTH=false
-DEV_FIREBASE_UID=
-DEV_FIREBASE_EMAIL=
-DEV_FIREBASE_NAME=
-NODE_ENV=development
-```
-
-### Frontend `.env` (`Telos_Frontend/.env`)
-
-```txt
-VITE_API_URL=http://localhost:3000/api/v1
-VITE_FIREBASE_API_KEY=
-VITE_FIREBASE_AUTH_DOMAIN=
-VITE_FIREBASE_PROJECT_ID=
-VITE_FIREBASE_APP_ID=
-VITE_FIREBASE_STORAGE_BUCKET=
-VITE_FIREBASE_MESSAGING_SENDER_ID=
-VITE_FIREBASE_MEASUREMENT_ID=
-```
-
-## Install and Run
-
-### Backend
+### 2. Install & Run
 
 ```powershell
-cd C:\Users\aayus\working-ly\Telos_AtomQuest\Telos_Backend
+# Backend
+cd Telos_Backend
 npm install
 npx.cmd prisma generate
-npm run dev
-```
+npm run dev                    # http://localhost:3000
 
-Runs at: `http://localhost:3000` | Health: `http://localhost:3000/health`
-
-### Frontend
-
-```powershell
-cd C:\Users\aayus\working-ly\Telos_AtomQuest\Telos_Frontend
+# Frontend (separate terminal)
+cd Telos_Frontend
 npm install
-npm run dev
+npm run dev                    # http://localhost:5173/login
 ```
 
-Runs at: `http://localhost:5173/login`
-
-### Seed Data
+### 3. Seed Demo Data
 
 ```powershell
-cd C:\Users\aayus\working-ly\Telos_AtomQuest\Telos_Backend
+cd Telos_Backend
 npm run seed:all
 ```
 
-Demo accounts:
+### 4. Demo Accounts
 
-| Role     | Email                  | Password   |
-|----------|------------------------|------------|
-| Employee | employee@telos.demo    | Demo@1234  |
-| Manager  | manager@telos.demo     | Demo@1234  |
-| Admin    | admin@telos.demo       | Demo@1234  |
+| Role | Email | Password |
+|---|---|---|
+| Employee | employee@telos.demo | Demo@1234 |
+| Manager | manager@telos.demo | Demo@1234 |
+| Admin | admin@telos.demo | Demo@1234 |
 
-## Verification
+### 5. Verify
 
 ```powershell
-# Backend tests
-cd Telos_Backend; npm test
-
-# Frontend build
-cd Telos_Frontend; npm run build
+cd Telos_Backend; npm test     # 14/14 unit tests
+cd Telos_Frontend; npm run build   # production build
 ```
 
-Current status:
-- **Backend**: 14/14 unit tests passing (validation, score computation, report filters, completion summary).
-- **Frontend**: Production build passes. All 18 pages are code-split via `React.lazy()` — initial JS down from 1,131 kB to 551 kB (51% reduction). Recharts (390 kB) is lazy-loaded on AnalyticsPage only. See `Telos_Frontend/README.md` for full breakdown.
+---
 
-## Manual Test Cases
+## Judge Guide — What to Show
 
-See `FINAL_REPORT.md` for the complete test suite (20+ detailed test cases across 8 suites).
+### Email Notifications (Key Demo Feature)
 
-### Quick Smoke Tests
+All demo accounts use `@telos.demo` — not real inboxes. Two features make email testable:
 
-**Employee Goal Sheet:**
-1. Login as `employee@telos.demo` → `/goals`
-2. Create goal sheet, add 2 goals totaling 100% weightage
-3. Verify WeightageBar shows "100% allocated — 0% remaining" in green
-4. Submit for approval → status changes to SUBMITTED, goals locked
+1. **Notification Email Override** — Admin can set a separate `notificationEmail` on any user (e.g. judge's real email) without changing their login credentials. Go to **Admin → User Management** → click the notification email cell → type a real address.
+2. **Email Log Viewer** — Every email send attempt is stored in the database regardless of delivery. Go to **Admin → Email Logs** (`/admin/email-logs`) to see:
+   - Full recipient, subject, event type
+   - **Expandable HTML preview** of the exact email that would be sent
+   - Delivery success/failure status with error messages
+   - All 8 event types: `GOAL_SHEET_SUBMITTED`, `GOAL_SHEET_APPROVED`, `GOAL_SHEET_RETURNED`, `GOAL_SHEET_UNLOCKED`, `SHARED_GOAL_PUSHED`, `CHECKIN_WINDOW_OPENED`, `CHECKIN_COMPLETED`, `ESCALATION`
 
-**Manager Approval:**
-1. Login as `manager@telos.demo` → `/manager/team`
-2. Review submitted sheet, adjust a target or weightage → yellow diff highlight
-3. Approve or return with reason (min 20 chars)
+**To demonstrate:** Do any action (submit sheet → manager approves → admin unlocks) then immediately check `/admin/email-logs` to see the generated emails.
 
-**Quarterly Check-ins:**
-1. Admin force-opens Q1 window → `/admin/cycles`
-2. Employee saves actuals → `/goals/sheet/active/checkin`
-3. Manager adds comment and marks complete → `/manager/team`
+### Core Flows
 
-**Shared Goals:**
-1. Manager pushes shared goal → `/manager/shared-goals`
-2. Employee sees "Shared" badge, read-only target, editable weightage
-3. Primary owner enters actual → syncs to all linked sheets
+| Flow | Steps |
+|---|---|
+| **Goal Sheet** | Employee creates sheet → adds goals (exactly 100% weightage) → submits → manager reviews with diff view → approves/returns → admin can unlock |
+| **Check-ins** | Admin opens check-in window → employee enters actuals → manager adds comment + marks complete |
+| **Shared Goals** | Manager creates shared goal → selects recipients → primary owner enters actual → syncs to all linked sheets |
+| **Admin Ops** | User CRUD + CSV bulk import, cycle window force open/close, escalation rules, audit trail with filters, analytics export (CSV/XLSX) |
 
-**Admin Operations:**
-1. CSV bulk import users → `/admin/users` "Import CSV"
-2. Archive past cycles → `/admin/cycles` "Archive"
-3. Export achievement reports → `/admin/analytics`
-4. View audit trail → `/admin/audit`
-5. Edit own profile → `/settings`
+---
 
-## Known Engineering Notes
+## Architecture
 
-- **14 unit tests** cover validation, score computation, report filters, and completion summaries. Integration and frontend test coverage should be expanded.
-- **Frontend**: Code-splitting implemented via `React.lazy()` on all 18 routes. Initial bundle reduced 51% (1,131 kB → 551 kB). Recharts stays on AnalyticsPage only.
-- **Backend**: Prisma errors are transformed to user-friendly messages via the centralized error handler. Raw `P2002`-style codes never reach the client.
-- Prisma's `package.json#prisma` config emits a deprecation warning for Prisma 7. A future cleanup should move Prisma configuration into a dedicated config file.
-- Database was synced with `prisma db push`; if using Prisma Migrate in production, baseline the existing Supabase schema first.
+### Stack
 
-## Useful Files
+- **Backend:** Node.js / Express, Prisma ORM, Supabase Postgres, Firebase Admin, Resend (email), node-cron, Zod, xlsx
+- **Frontend:** React 19 / Vite 8 / Tailwind CSS v4 / Framer Motion / Firebase Auth / Recharts / react-hot-toast
 
-Backend:
-- `src/app.js` — Entry point
-- `src/prisma/schema.prisma` — Full schema
-- `src/utils/schemas.js` — All Zod validation schemas
-- `src/middleware/` — Authenticate, authorize, validate, checkNotLocked, auditLogger
-- `src/services/` — Score, validation, notifications, email, escalation, report filters
+### Database (13 models)
 
-Frontend:
-- `src/routes/AppRouter.jsx` — All routes including `/settings`
-- `src/api/` — 11 API wrapper files
-- `src/pages/` — 18 pages across employee/manager/admin/shared
-- `src/components/` — Layout, goals, and shared component directories
-- `src/hooks/` — useAuth, useGoalSheet, useCurrentCycle, useWindowStatus
-- `src/index.css` — Tailwind v4 theme tokens
+`User` (with `notificationEmail` field), `Cycle`, `CycleWindow`, `GoalSheet`, `Goal`, `SharedGoal`, `CheckinRecord`, `Notification`, `AuditLog`, `EmailLog`, `ThrustArea`, `EscalationRule`, `Escalation`
 
-Docs: `prd.md`, `trd.md`
+### API Routes (`/api/v1`)
+
+`/auth`, `/goals`, `/goal-sheets`, `/checkins`, `/users`, `/cycles`, `/notifications`, `/reports`, `/shared-goals`, `/admin` (includes `/admin/email-logs` for email audit)
+
+### Backend Routes
+
+```
+/login                              # Login
+/goals                              # Employee dashboard
+/goals/sheet/:sheetId               # Goal sheet editor
+/goals/sheet/:sheetId/checkin       # Quarterly check-in
+/manager/team                       # Team overview
+/manager/approve/:sheetId           # Approval with diff view
+/manager/checkin/:employeeId        # Manager check-in
+/manager/shared-goals               # Shared goals push
+/admin                              # Command center
+/admin/users                        # User management
+/admin/cycles                       # Cycle/window config
+/admin/audit                        # Audit trail
+/admin/completion                   # Completion dashboard
+/admin/analytics                    # Analytics & export
+/admin/thrust-areas                 # Thrust areas
+/admin/escalations                  # Escalation rules
+/admin/unlock                       # Goal/sheet unlock
+/admin/email-logs                   # Email audit viewer
+/settings                           # Profile & settings
+```
+
+### Middleware (per-route chain)
+
+`authenticate` (Firebase token) → `authorize` (role check) → `validate` (Zod) → `checkNotLocked` (goal guard) → `auditLogger` (change capture) → controller
+
+---
+
+## Key Design Decisions
+
+- **notificationEmail** is a separate DB field — it **does not** affect Firebase login. Users always authenticate with their original email.
+- **Email Logs** persist every send attempt (success + failure) so judges can verify email content even when demo addresses are unreachable.
+- All 18 frontend pages are code-split via `React.lazy()` — initial JS reduced from 1,131 kB to 551 kB (51%).
+- Prisma errors are transformed to readable messages via `errorHandler.js` — raw `P2002` codes never reach the client.
+- Tests: 14/14 passing (validation, score computation, report filters, completion summary).
