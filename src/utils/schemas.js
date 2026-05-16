@@ -13,6 +13,16 @@ const goalIdParam = z.object({ goalId: z.string().min(1) })
 export const authSchemas = {
   sync: z.object({ body: z.any(), params: z.any(), query: z.any() }),
   me: z.object({ body: z.any(), params: z.any(), query: z.any() }),
+  updateMe: z.object({
+    body: z.object({
+      name: z.string().min(1).max(100).optional(),
+      email: z.string().email().optional(),
+      phone: z.string().max(20).optional().nullable(),
+      department: z.string().max(100).optional().nullable(),
+    }),
+    params: z.any(),
+    query: z.any(),
+  }),
 }
 
 export const goalSchemas = {

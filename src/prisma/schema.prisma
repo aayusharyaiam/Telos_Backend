@@ -73,6 +73,7 @@ model User {
   firebaseUid        String    @unique
   email              String    @unique
   name               String
+  phone              String?
   role               Role      @default(EMPLOYEE)
   department         String?
   isActive           Boolean   @default(true)
