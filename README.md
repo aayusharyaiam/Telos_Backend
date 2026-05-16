@@ -140,7 +140,7 @@ Telos AtomQuest is a full-stack goal setting and performance tracking portal. It
   - Minimum 10 percent weightage per goal.
   - Total weightage must equal exactly 100 percent before submission.
   - Title, thrust area, UoM, target, and date values are validated server-side.
-- Weightage bar shows real-time health (green at 100%, red if over).
+- Weightage bar shows real-time health with remaining percentage (e.g. "72% allocated — 28% remaining", green at 100%, red if over).
 - Weightage >90% triggers a warning: "leaves very little room for other goals".
 - Auto-save: draft form backed up to localStorage every 30s and on blur.
 - Employee can submit goal sheet for approval.
@@ -233,19 +233,21 @@ Edge cases handled:
 ### Admin User Management
 
 - Admins can view users from Supabase.
-- Admins can create users in Firebase and Supabase.
+- Admins can create users individually in Firebase and Supabase.
+- Admins can **bulk import users from CSV** — paste CSV text or upload a `.csv` file with columns: `name, email, password, role, department`. Parsed with `xlsx`.
 - Admins can update roles.
 - Admins can activate and deactivate users.
 - Activate/deactivate uses confirmation modal.
-- User creation and updates create audit logs.
+- User creation, import, and updates create audit logs.
 
 ### Cycle and Window Management
 
-- Admins can view the active cycle and its windows.
+- Admins can view all cycles (active and past), their windows, and archived cycles.
 - Admins can force open or force close:
   - Goal Setting
   - Q1 Check-in through Q4 Check-in
 - Force open/close uses confirmation modal.
+- Admins can **archive past cycles** — hidden from all views by default; archived cycles can be toggled visible via "Show archived" button.
 - Opening a check-in window creates in-app notifications and sends emails when Resend is configured.
 - Employee dashboard shows an open-check-in banner with deadline and deep link.
 - Helper functions in `src/utils/cycleHelper.js`: `getCurrentWindowStatus`, `getActiveCycle`, `getWindow`.
@@ -294,7 +296,9 @@ Edge cases handled:
 ### Settings / Profile
 
 - Shared `/settings` page available to all roles.
-- Displays: name, email, role, department, account status.
+- **Editable profile**: users can update their own name, email, phone, and department.
+- Email changes sync to Firebase Auth automatically.
+- Displays: name, email, phone, role, department, account status.
 
 ## Middleware Architecture
 
@@ -337,12 +341,12 @@ All API routes mounted under `/api/v1`:
 
 ```txt
 /health
-/api/v1/auth
+/api/v1/auth                   # POST /sync, GET /me, PATCH /me (profile edit)
 /api/v1/goals
 /api/v1/goal-sheets
 /api/v1/checkins
-/api/v1/users
-/api/v1/cycles
+/api/v1/users                  # POST /import (CSV bulk import)
+/api/v1/cycles                 # PATCH /:id/archive
 /api/v1/notifications
 /api/v1/reports
 /api/v1/shared-goals
@@ -353,7 +357,7 @@ All API routes mounted under `/api/v1`:
 
 Main Prisma models (12):
 
-- `User` — with self-referencing `reportingManagerId` for hierarchy
+- `User` — with `phone`, self-referencing `reportingManagerId` for hierarchy
 - `Cycle` — active cycle tracking
 - `CycleWindow` — per-phase window with force-override status
 - `GoalSheet` — unique per `userId` + `cycleId`
@@ -459,8 +463,8 @@ cd Telos_Frontend; npm run build
 ```
 
 Current status:
-- **Backend**: 18/18 unit tests passing (validation, score computation, report filters, completion summary).
-- **Frontend**: Production build passes (Vite chunk-size warning is non-blocking).
+- **Backend**: 14/14 unit tests passing (validation, score computation, report filters, completion summary).
+- **Frontend**: Production build passes (~958 KB, ~270 KB gzip; Vite chunk-size warning is non-blocking).
 
 ## Manual Smoke Tests
 
@@ -495,8 +499,8 @@ Current status:
 
 ## Known Engineering Notes
 
-- **18 unit tests** cover validation, score computation, report filters, and completion summaries. Integration and frontend test coverage should be expanded.
-- Frontend build passes with a Vite chunk-size warning (~949 KB) — dynamic imports could improve code-splitting.
+- **14 unit tests** cover validation, score computation, report filters, and completion summaries. Integration and frontend test coverage should be expanded.
+- Frontend build passes with a Vite chunk-size warning (~958 KB) — dynamic imports could improve code-splitting.
 - Prisma's `package.json#prisma` config emits a deprecation warning for Prisma 7. A future cleanup should move Prisma configuration into a dedicated config file.
 - Database was synced with `prisma db push`; if using Prisma Migrate in production, baseline the existing Supabase schema first.
 
