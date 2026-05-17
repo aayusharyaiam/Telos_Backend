@@ -59,3 +59,12 @@ authenticate → authorize → validate → checkNotLocked → auditLogger → c
 - Teams webhook (notifications)
 
 See [Full Documentation](../Telos_AtomQuest_Documentation.md) for architecture, schema, and feature details.
+
+## Screenshots
+
+- Manager dashboard: ![Manager Dashboard](../Telos_Frontend/docs/screenshots/manager-dashboard.png)
+- Manager approval diff: ![Approval Diff](../Telos_Frontend/docs/screenshots/manager-approval-diff.png)
+- Admin analytics overview: ![Analytics Overview](../Telos_Frontend/docs/screenshots/admin-analytics-overview.png)
+- Admin audit trail: ![Audit Trail](../Telos_Frontend/docs/screenshots/admin-audit-trail.png)
+- Admin email logs: ![Email Logs](../Telos_Frontend/docs/screenshots/admin-email-logs.png)
+- Admin escalations: ![Escalations](../Telos_Frontend/docs/screenshots/admin-escalations.png)

@@ -100,6 +100,15 @@ app.use(
 
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')))
 
+app.get('/', (req, res) => {
+  res.json({
+    name: 'Telos AtomQuest API',
+    version: '1.0.0',
+    docs: 'See /api/v1 routes',
+    health: '/health',
+  })
+})
+
 app.use('/health', healthRouter)
 app.use('/api/v1/auth', authRouter)
 app.use('/api/v1/goals', goalsRouter)
