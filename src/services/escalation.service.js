@@ -1,6 +1,7 @@
 import prisma from '../config/prisma.js'
 import { createNotification } from './notification.service.js'
 import { sendNotificationEmail } from './email.service.js'
+import { notifyEscalationTriggered } from './teamsNotification.service.js'
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24
 const QUARTER_MAP = {
@@ -317,6 +318,14 @@ export async function checkEscalations() {
             await notifyUser(item.manager, escalationPayload)
           }
           await notifyAdmins(admins, escalationPayload)
+
+          // Send Teams notification
+          notifyEscalationTriggered({
+            ruleName: rule.name,
+            employeeName: item.user.name,
+            phase: rule.phase,
+            triggerDays: rule.triggerAfterDays,
+          }).catch(() => {})
 
           results.push({ escalationId: updated.id, userId: item.user.id, rule: rule.name, status: 'ESCALATED' })
         } else if (existing.status === 'PENDING' && ageDays >= 3 && !hasReminderSent(existing)) {

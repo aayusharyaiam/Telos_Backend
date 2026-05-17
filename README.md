@@ -93,6 +93,24 @@ cd Telos_Backend; npm test          # 14/14 unit tests
 cd Telos_Frontend; npm run build    # production build — zero errors
 ```
 
+### Docker Deployment
+
+```powershell
+# Build and start
+docker compose up -d
+
+# View logs
+docker compose logs -f
+
+# Stop
+docker compose down
+```
+
+Services:
+| Port | Service | Health Check |
+|------|---------|--------------|
+| 3000 | Backend | /health |
+
 ---
 
 ## Features — Implementation Details
@@ -162,7 +180,7 @@ Edge cases: division-by-zero returns `null` (displayed as "N/A"), null actuals r
 
 - Backend: `Notification` model with `userId`, `message`, `link`, `isRead`.
 - API: `GET /api/v1/notifications`, `PATCH /api/v1/notifications/:id/read`, `PATCH /api/v1/notifications/read-all`.
-- Frontend: Navbar bell shows unread count badge. NotificationDrawer polls every 30s. Click navigates + marks read. Auto-dismiss after 4s.
+- Frontend: Navbar bell shows unread count badge. Popup toasts appear top-right, auto-dismiss after 4 seconds, pause timer on hover, click navigates to link + marks read. NotificationDrawer polls every 15s.
 - Notifications created for: sheet submit/approve/return, goal unlock, check-in window open, shared goal push, escalation, manager check-in complete.
 
 ### 7. Email Notifications
@@ -239,6 +257,24 @@ Edge cases: division-by-zero returns `null` (displayed as "N/A"), null actuals r
 - States: `PENDING` → (auto) `ESCALATED` → (admin) `RESOLVED`.
 - Escalations create in-app notifications + Resend emails with escalation details.
 
+### 14. Microsoft Teams Notifications (Optional)
+
+Webhook-based notifications using Microsoft Teams Incoming Webhooks.
+
+**Environment Variables:**
+- `TEAMS_WEBHOOK_URL` - Teams Incoming Webhook URL
+- `ENABLE_TEAMS_NOTIFICATIONS=true` - Enable the feature
+- `APP_BASE_URL` - Base URL for deep links
+
+**Supported Events:**
+| Event | Trigger | Deep Link |
+|---|---|---|
+| GOAL_SHEET_SUBMITTED | Employee submits goal sheet | /manager/approve/:id |
+| GOAL_SHEET_APPROVED | Manager approves sheet | /goals/sheet/:id |
+| ESCALATION_TRIGGERED | Escalation escalated | /admin/escalations |
+
+**Implementation:** `src/services/teamsNotification.service.js` uses axios to POST MessageCard format. Fails gracefully - never throws unhandled errors, logs failures, continues original workflow.
+
 ---
 
 ## Middleware Pipeline
@@ -312,6 +348,7 @@ All mounted under `/api/v1`:
 | Database | Supabase Postgres |
 | Auth | Firebase Admin SDK |
 | Email | Resend |
+| Teams Notifications | Incoming Webhook (axios) |
 | Validation | Zod |
 | Scheduling | node-cron |
 | Export | xlsx |

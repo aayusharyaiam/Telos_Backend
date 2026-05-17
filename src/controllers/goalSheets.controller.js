@@ -2,6 +2,7 @@ import prisma from '../config/prisma.js'
 import { createNotification } from '../services/notification.service.js'
 import { sendNotificationEmail } from '../services/email.service.js'
 import { validateSheetGoals } from '../services/goalValidation.service.js'
+import { notifyGoalSheetSubmitted, notifyGoalSheetApproved } from '../services/teamsNotification.service.js'
 import { ForbiddenError, NotFoundError, ValidationError } from '../utils/errors.js'
 import { sendSuccess } from '../utils/response.js'
 
@@ -230,6 +231,14 @@ export async function submitGoalSheet(req, res, next) {
           },
         })
       }
+
+      // Send Teams notification
+      notifyGoalSheetSubmitted({
+        employeeName: updated.user.name,
+        cycleName: updated.cycle?.name || 'Unknown',
+        submittedAt: updated.submittedAt,
+        sheetId: updated.id,
+      }).catch(() => {})
     }
 
     return sendSuccess(res, updated)
@@ -277,6 +286,14 @@ export async function approveGoalSheet(req, res, next) {
       eventType: 'GOAL_SHEET_APPROVED',
       data: { link: `${process.env.FRONTEND_URL || ''}/goals/sheet/${updated.id}` },
     })
+
+    // Send Teams notification
+    notifyGoalSheetApproved({
+      employeeName: updated.user.name,
+      managerName: req.user.name,
+      approvedAt: updated.approvedAt,
+      sheetId: updated.id,
+    }).catch(() => {})
 
     return sendSuccess(res, updated)
   } catch (err) {

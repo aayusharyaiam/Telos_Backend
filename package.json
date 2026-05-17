@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "nodemon src/app.js",
     "start": "node src/app.js",
+    "build": "echo 'No build step required for Node.js'",
     "setup": "npm install && npx prisma generate && node scripts/setup-db.js",
     "prisma": "prisma",
     "migrate": "prisma migrate dev",
@@ -13,7 +14,8 @@
     "test": "node --test",
     "seed": "node prisma/seed.js",
     "seed:users": "node prisma/seed-users.js",
-    "seed:all": "node prisma/seed.js && node prisma/seed-users.js && node prisma/seed-data.js"
+    "seed:all": "node prisma/seed.js && node prisma/seed-users.js && node prisma/seed-data.js",
+    "docker:start": "docker compose up -d"
   },
   "prisma": {
     "schema": "src/prisma/schema.prisma",
@@ -27,6 +29,7 @@
     "express-rate-limit": "^7.1.5",
     "firebase-admin": "^10.3.0",
     "helmet": "^7.1.0",
+    "morgan": "^1.10.1",
     "multer": "^2.1.1",
     "node-cron": "^3.0.3",
     "resend": "^3.2.0",

@@ -3,6 +3,7 @@ import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
+import morgan from 'morgan'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
@@ -17,6 +18,7 @@ import notificationsRouter from './routes/notifications.routes.js'
 import reportsRouter from './routes/reports.routes.js'
 import sharedGoalsRouter from './routes/sharedGoals.routes.js'
 import adminRouter from './routes/admin.routes.js'
+import { requestLogger } from './middleware/requestLogger.js'
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -25,6 +27,7 @@ const __dirname = path.dirname(__filename)
 const app = express()
 
 app.use(helmet())
+app.use(requestLogger)
 
 const defaultAllowedOrigins = [
   'http://localhost:5173',

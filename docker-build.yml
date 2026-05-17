@@ -1,0 +1,68 @@
+name: Docker Build & Validate
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Telos_Backend/**'
+      - 'Telos_Frontend/**'
+      - 'docker-compose.yml'
+      - '.github/workflows/docker-build.yml'
+  pull_request:
+    paths:
+      - 'Telos_Backend/**'
+      - 'Telos_Frontend/**'
+      - 'docker-compose.yml'
+      - '.github/workflows/docker-build.yml'
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build backend Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./Telos_Backend
+          push: false
+          load: true
+          tags: telos-backend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build frontend Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./Telos_Frontend
+          push: false
+          load: true
+          tags: telos-frontend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Validate docker-compose
+        run: |
+          docker compose -f docker-compose.yml config --quiet
+
+      - name: Start containers for validation
+        run: |
+          docker compose -f docker-compose.yml up -d
+          sleep 15
+          
+      - name: Check backend health
+        run: |
+          curl -f http://localhost:3000/health || exit 1
+
+      - name: Check frontend health
+        run: |
+          curl -f http://localhost/health || exit 1
+
+      - name: Stop containers
+        if: always()
+        run: docker compose -f docker-compose.yml down
