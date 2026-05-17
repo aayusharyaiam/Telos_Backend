@@ -62,9 +62,9 @@ See [Full Documentation](../Telos_AtomQuest_Documentation.md) for architecture, 
 
 ## Screenshots
 
-- Manager dashboard: ![Manager Dashboard](../Telos_Frontend/docs/screenshots/manager-dashboard.png)
-- Manager approval diff: ![Approval Diff](../Telos_Frontend/docs/screenshots/manager-approval-diff.png)
-- Admin analytics overview: ![Analytics Overview](../Telos_Frontend/docs/screenshots/admin-analytics-overview.png)
-- Admin audit trail: ![Audit Trail](../Telos_Frontend/docs/screenshots/admin-audit-trail.png)
-- Admin email logs: ![Email Logs](../Telos_Frontend/docs/screenshots/admin-email-logs.png)
-- Admin escalations: ![Escalations](../Telos_Frontend/docs/screenshots/admin-escalations.png)
+<p><img src="../Telos_Frontend/docs/screenshots/manager-dashboard.png" alt="Manager Dashboard" width="600"/></p>
+<p><img src="../Telos_Frontend/docs/screenshots/manager-approval-diff.png" alt="Approval Diff" width="600"/></p>
+<p><img src="../Telos_Frontend/docs/screenshots/admin-analytics-overview.png" alt="Analytics Overview" width="600"/></p>
+<p><img src="../Telos_Frontend/docs/screenshots/admin-audit-trail.png" alt="Audit Trail" width="600"/></p>
+<p><img src="../Telos_Frontend/docs/screenshots/admin-email-logs.png" alt="Email Logs" width="600"/></p>
+<p><img src="../Telos_Frontend/docs/screenshots/admin-escalations.png" alt="Escalations" width="600"/></p>
