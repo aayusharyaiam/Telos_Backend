@@ -56,6 +56,9 @@ export const uploadMiddleware = upload
 
 const app = express()
 
+// Trust proxy headers so rate limiting keys are based on real client IPs behind Render/Vercel.
+app.set('trust proxy', 1)
+
 app.use('/uploads', express.static(uploadsDir))
 
 app.use(helmet())
