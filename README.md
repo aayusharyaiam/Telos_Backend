@@ -1,6 +1,6 @@
 # Telos AtomQuest — Backend
 
-Express REST API with Prisma ORM on PostgreSQL (Supabase). See [Full Documentation](../Telos_AtomQuest_Documentation.md) for complete features.
+Express REST API with Prisma ORM on PostgreSQL (Supabase). See [Full Documentation](Telos_AtomQuest_Documentation.md) for complete features.
 
 ## Quick Start
 
@@ -58,4 +58,4 @@ authenticate → authorize → validate → checkNotLocked → auditLogger → c
 - node-cron (escalations)
 - Teams webhook (notifications)
 
-See [Full Documentation](../Telos_AtomQuest_Documentation.md) for architecture, schema, and feature details.
+See [Full Documentation](Telos_AtomQuest_Documentation.md) for architecture, schema, and feature details.
