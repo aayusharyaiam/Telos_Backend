@@ -2,7 +2,7 @@ import { Router } from 'express'
 import { authenticate } from '../middleware/authenticate.js'
 import { authorize } from '../middleware/authorize.js'
 import { validate } from '../middleware/validate.js'
-import { uploadMiddleware } from '../app.js'
+import { uploadMiddleware } from '../config/upload.js'
 import {
   getTeamSummary,
   listCheckins,
