@@ -326,3 +326,50 @@ export async function getTeamSummary(req, res, next) {
     return next(err)
   }
 }
+
+export async function uploadEvidence(req, res, next) {
+  try {
+    const { checkinId } = req.body
+    if (!checkinId) throw new ValidationError('Check-in ID is required')
+
+    const checkin = await prisma.checkinRecord.findUnique({
+      where: { id: checkinId },
+      include: {
+        goal: {
+          include: {
+            goalSheet: { include: { user: { select: { id: true, reportingManagerId: true } } } },
+          },
+        },
+      },
+    })
+
+    if (!checkin) throw new NotFoundError('Check-in')
+    if (checkin.goal.goalSheet.userId !== req.user.id && req.user.role !== 'ADMIN') {
+      throw new ForbiddenError('Only the check-in owner or admin can upload evidence')
+    }
+
+    if (!req.file) {
+      throw new ValidationError('No file uploaded')
+    }
+
+    const baseUrl = process.env.FRONTEND_URL || ''
+    const fileUrl = `/uploads/${req.file.filename}`
+
+    const updated = await prisma.checkinRecord.update({
+      where: { id: checkinId },
+      data: {
+        evidenceUrl: fileUrl,
+        evidenceFileName: req.file.originalname,
+        evidenceFileType: req.file.mimetype,
+        evidenceFileSize: req.file.size,
+      },
+    })
+
+    return sendSuccess(res, {
+      ...updated,
+      evidenceUrl: fileUrl,
+    })
+  } catch (err) {
+    return next(err)
+  }
+}

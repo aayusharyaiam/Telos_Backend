@@ -542,3 +542,248 @@ export async function getManagerEffectiveness(req, res, next) {
     return next(err)
   }
 }
+
+// ─── Heatmap Analytics ──────────────────────────────────────────
+
+export async function getAnalyticsHeatmap(req, res, next) {
+  try {
+    const cycleId = await getActiveCycleId()
+    const where = cycleId ? { goalSheet: { cycleId } } : {}
+
+    const sheets = await prisma.goalSheet.findMany({
+      where,
+      include: {
+        user: { select: { department: true } },
+        goals: { include: { checkins: true } },
+      },
+    })
+
+    const departments = [...new Set(sheets.map((s) => s.user.department).filter(Boolean))]
+    const heatmapData = {}
+
+    for (const dept of departments) {
+      heatmapData[dept] = {}
+      for (const quarter of QUARTERS) {
+        const deptSheets = sheets.filter((s) => s.user.department === dept)
+        let totalGoals = 0
+        let completedGoals = 0
+        let totalScore = 0
+        let scoreCount = 0
+
+        for (const sheet of deptSheets) {
+          for (const goal of sheet.goals) {
+            totalGoals++
+            const checkin = goal.checkins.find((c) => c.quarter === quarter)
+            if (checkin?.checkinCompleted) {
+              completedGoals++
+            }
+            if (checkin?.progressScore !== null) {
+              totalScore += checkin.progressScore
+              scoreCount++
+            }
+          }
+        }
+
+        heatmapData[dept][quarter] = {
+          total: totalGoals,
+          completed: completedGoals,
+          completionRate: totalGoals ? Math.round((completedGoals / totalGoals) * 100) : 0,
+          avgScore: scoreCount ? Math.round(totalScore / scoreCount) : 0,
+        }
+      }
+    }
+
+    return sendSuccess(res, { departments, quarters: QUARTERS, data: heatmapData })
+  } catch (err) {
+    return next(err)
+  }
+}
+
+// ─── Department Performance ─────────────────────────────────────
+
+export async function getDepartmentPerformance(req, res, next) {
+  try {
+    const cycleId = await getActiveCycleId()
+    const where = cycleId ? { goalSheet: { cycleId } } : {}
+
+    const sheets = await prisma.goalSheet.findMany({
+      where,
+      include: {
+        user: { select: { department: true, reportingManager: { select: { name: true } } } },
+        goals: { include: { checkins: true } },
+      },
+    })
+
+    const deptData = {}
+
+    for (const sheet of sheets) {
+      const dept = sheet.user.department || 'Unassigned'
+      if (!deptData[dept]) {
+        deptData[dept] = {
+          department: dept,
+          employees: new Set(),
+          totalGoals: 0,
+          completedGoals: 0,
+          totalScore: 0,
+          scoreCount: 0,
+          sheetStatus: { DRAFT: 0, SUBMITTED: 0, APPROVED: 0, RETURNED: 0 },
+        }
+      }
+
+      deptData[dept].employees.add(sheet.userId)
+      deptData[dept].totalGoals += sheet.goals.length
+      deptData[dept].sheetStatus[sheet.status] = (deptData[dept].sheetStatus[sheet.status] || 0) + 1
+
+      for (const goal of sheet.goals) {
+        for (const checkin of goal.checkins) {
+          if (checkin.checkinCompleted) {
+            deptData[dept].completedGoals++
+          }
+          if (checkin.progressScore !== null) {
+            deptData[dept].totalScore += checkin.progressScore
+            deptData[dept].scoreCount++
+          }
+        }
+      }
+    }
+
+    const results = Object.values(deptData).map((d) => ({
+      department: d.department,
+      employeeCount: d.employees.size,
+      totalGoals: d.totalGoals,
+      completedGoals: d.completedGoals,
+      completionRate: d.totalGoals ? Math.round((d.completedGoals / d.totalGoals) * 100) : 0,
+      avgScore: d.scoreCount ? Math.round(d.totalScore / d.scoreCount) : 0,
+      sheets: d.sheetStatus,
+    }))
+
+    return sendSuccess(res, results)
+  } catch (err) {
+    return next(err)
+  }
+}
+
+// ─── Employee Drill-down ─────────────────────────────────────────
+
+export async function getEmployeeDrilldown(req, res, next) {
+  try {
+    const employeeId = req.query.employeeId
+    if (!employeeId) {
+      return sendSuccess(res, [])
+    }
+
+    const employee = await prisma.user.findUnique({
+      where: { id: employeeId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        department: true,
+        reportingManager: { select: { name: true } },
+        goalSheets: {
+          include: {
+            cycle: { select: { name: true } },
+            goals: {
+              include: {
+                checkins: { orderBy: { quarter: 'asc' } },
+                parentSharedGoal: true,
+              },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+    })
+
+    if (!employee) {
+      return sendSuccess(res, null)
+    }
+
+    const drilldown = {
+      employee: {
+        id: employee.id,
+        name: employee.name,
+        email: employee.email,
+        department: employee.department,
+        manager: employee.reportingManager?.name || '-',
+      },
+      goalSheets: employee.goalSheets.map((sheet) => ({
+        cycle: sheet.cycle?.name,
+        status: sheet.status,
+        createdAt: sheet.createdAt,
+        goals: sheet.goals.map((goal) => ({
+          title: goal.title,
+          thrustArea: goal.thrustArea,
+          weightage: goal.weightage,
+          target: goal.target,
+          uomType: goal.uomType,
+          checkins: goal.checkins.map((c) => ({
+            quarter: c.quarter,
+            actualAchievement: c.actualAchievement,
+            progressScore: c.progressScore,
+            checkinCompleted: c.checkinCompleted,
+            managerComment: c.managerComment,
+          })),
+        })),
+      })),
+    }
+
+    return sendSuccess(res, drilldown)
+  } catch (err) {
+    return next(err)
+  }
+}
+
+// ─── Goal Timeline Analysis ─────────────────────────────────────
+
+export async function getGoalTimeline(req, res, next) {
+  try {
+    const cycleId = await getActiveCycleId()
+    const where = cycleId ? { goalSheet: { cycleId } } : {}
+
+    const goals = await prisma.goal.findMany({
+      where,
+      include: {
+        goalSheet: { include: { user: { select: { name: true } } } },
+        checkins: { orderBy: { quarter: 'asc' } },
+      },
+    })
+
+    const timelineData = {
+      Q1: { onTime: 0, late: 0, pending: 0 },
+      Q2: { onTime: 0, late: 0, pending: 0 },
+      Q3: { onTime: 0, late: 0, pending: 0 },
+      Q4: { onTime: 0, late: 0, pending: 0 },
+    }
+
+    for (const goal of goals) {
+      for (const checkin of goal.checkins) {
+        if (!checkin.actualDate || !goal.targetDate) continue
+
+        const actual = new Date(checkin.actualDate)
+        const target = new Date(goal.targetDate)
+        const quarter = checkin.quarter
+
+        if (checkin.checkinCompleted) {
+          if (actual <= target) {
+            timelineData[quarter].onTime++
+          } else {
+            timelineData[quarter].late++
+          }
+        } else {
+          timelineData[quarter].pending++
+        }
+      }
+    }
+
+    const results = Object.entries(timelineData).map(([quarter, data]) => ({
+      quarter,
+      ...data,
+      total: data.onTime + data.late + data.pending,
+    }))
+
+    return sendSuccess(res, results)
+  } catch (err) {
+    return next(err)
+  }
+}

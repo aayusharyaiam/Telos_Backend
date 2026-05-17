@@ -7,6 +7,10 @@ import {
   getAnalyticsDistribution,
   getAnalyticsOverview,
   getAnalyticsTrends,
+  getAnalyticsHeatmap,
+  getDepartmentPerformance,
+  getEmployeeDrilldown,
+  getGoalTimeline,
   getAuditReport,
   getCompletionReport,
   getManagerEffectiveness,
@@ -29,5 +33,13 @@ router.get('/analytics/trends', authenticate, authorize('MANAGER', 'ADMIN'), get
 router.get('/analytics/distribution', authenticate, authorize('MANAGER', 'ADMIN'), getAnalyticsDistribution)
 
 router.get('/analytics/manager-effectiveness', authenticate, authorize('ADMIN'), getManagerEffectiveness)
+
+router.get('/analytics/heatmap', authenticate, authorize('ADMIN'), getAnalyticsHeatmap)
+
+router.get('/analytics/department-performance', authenticate, authorize('ADMIN'), getDepartmentPerformance)
+
+router.get('/analytics/employee-drilldown', authenticate, authorize('MANAGER', 'ADMIN'), getEmployeeDrilldown)
+
+router.get('/analytics/goal-timeline', authenticate, authorize('ADMIN'), getGoalTimeline)
 
 export default router

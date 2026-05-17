@@ -133,8 +133,9 @@ cd Telos_Frontend; npm run build    # production build — zero errors
 
 - Employee and manager check-in pages support Q1, Q2, Q3, Q4 with quarter selector.
 - **Employee**: Saves actual achievement value, actual date, completion status, and notes per goal.
+- **Evidence Attachments**: Employee can upload supporting documents (images, PDF, DOC, TXT up to 10MB) per goal via `POST /api/v1/checkins/evidence`. Files stored in `/uploads`, metadata tracked in CheckinRecord (evidenceUrl, evidenceFileName, evidenceFileType, evidenceFileSize).
 - **Shared goals**: "Awaiting owner update" indicator shown when the primary owner hasn't entered data. Shared actual data syncs across linked sheets.
-- **Manager**: Views planned vs actual data, adds manager comments, marks check-in complete.
+- **Manager**: Views planned vs actual data, adds manager comments, views attached evidence files, marks check-in complete.
 - **Score computation** (server-side `score.service.js` + frontend mirror `scoreComputer.js`):
 
 | UoM Type | Rule | Cap |
@@ -217,7 +218,7 @@ Edge cases: division-by-zero returns `null` (displayed as "N/A"), null actuals r
 - **Achievement report**: Supports JSON, CSV, XLSX. Filters: cycleId, quarter, managerId, employeeId, status, department, employeeSearch.
 - **Completion dashboard**: Quarter selector, per-employee Q1–Q4 completion rows.
 - **Admin command center KPI**: Derived from currently open / latest check-in window.
-- **Analytics page**: Overview cards, quarter trend chart (Recharts), goal distribution, manager effectiveness. Export controls.
+- **Analytics page**: Overview cards, quarter trend chart (area chart with score + volume), goal distribution (treemap), department×quarter heatmap (clickable drill-down), goal timeline (on-time vs late), UoM pie chart, manager effectiveness (dual-bar chart), department performance. Export controls.
 
 ### 12. Audit Trail
 
@@ -270,11 +271,11 @@ All mounted under `/api/v1`:
 | `/auth` | `POST /sync`, `GET /me`, `PATCH /me` |
 | `/goals` | CRUD per goal, `PATCH /:id/unlock` |
 | `/goal-sheets` | CRUD sheets, `POST /:id/submit`, `POST /:id/approve`, `POST /:id/return`, `PATCH /:id/unlock`, `GET /:id/diff` |
-| `/checkins` | CRUD check-in records, `PATCH /:id/complete` (manager) |
+| `/checkins` | CRUD check-in records, `PATCH /:id/complete` (manager), `POST /evidence` (file upload) |
 | `/users` | `GET /` (list), `POST /` (create), `PATCH /:id` (update), `POST /import` (CSV) |
 | `/cycles` | CRUD cycles, `PATCH /:id/archive`, window management |
 | `/notifications` | `GET /`, `PATCH /:id/read`, `PATCH /read-all` |
-| `/reports` | Achievement report with filters |
+| `/reports` | Achievement report with filters, analytics endpoints (overview, trends, distribution, heatmap, department-performance, goal-timeline, manager-effectiveness), completion, audit |
 | `/shared-goals` | CRUD shared goals, push to recipients |
 | `/admin` | Thrust areas, escalation rules/run, email logs |
 
@@ -314,6 +315,7 @@ All mounted under `/api/v1`:
 | Validation | Zod |
 | Scheduling | node-cron |
 | Export | xlsx |
+| File Uploads | Multer (local storage) |
 | Security | Helmet, CORS, express-rate-limit |
 
 ### Frontend Stack

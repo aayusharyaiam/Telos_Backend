@@ -205,6 +205,11 @@ model CheckinRecord {
   goalStatus         GoalStatus @default(NOT_STARTED)
   employeeNotes      String?
 
+  evidenceUrl        String?
+  evidenceFileName   String?
+  evidenceFileType   String?
+  evidenceFileSize   Int?
+
   managerId          String?
   managerComment     String?
   checkinCompleted   Boolean    @default(false)
