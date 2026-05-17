@@ -373,11 +373,11 @@ export async function getAdminSummary(req, res, next) {
         where: { cycleId, status: 'APPROVED' },
         include: { goals: { include: { checkins: { where: { quarter: dashboardQuarter } } } } },
       })
-      selectedTotal = approvedSheets.length
-      selectedCompletedCount = approvedSheets.filter((s) =>
-        s.goals.length > 0 &&
-        s.goals.every((g) => g.checkins.some((c) => c.checkinCompleted))
-      ).length
+      selectedTotal = approvedSheets?.length || 0
+      selectedCompletedCount = approvedSheets?.filter((s) =>
+        s.goals?.length > 0 &&
+        s.goals?.every((g) => g.checkins?.some((c) => c.checkinCompleted))
+      )?.length || 0
     }
 
     return sendSuccess(res, {
@@ -506,16 +506,16 @@ export async function getManagerEffectiveness(req, res, next) {
     })
 
     const rows = managers.map((m) => {
-      const reports = m.directReports.length
+      const reports = m.directReports?.length || 0
       let totalCheckins = 0
       let completedCheckins = 0
       let totalScore = 0
       let scoreCount = 0
 
-      for (const report of m.directReports) {
-        for (const sheet of report.goalSheets) {
-          for (const goal of sheet.goals) {
-            for (const checkin of goal.checkins) {
+      for (const report of m.directReports || []) {
+        for (const sheet of report.goalSheets || []) {
+          for (const goal of sheet.goals || []) {
+            for (const checkin of goal.checkins || []) {
               totalCheckins++
               if (checkin.checkinCompleted) completedCheckins++
               if (checkin.progressScore !== null) {
@@ -548,32 +548,36 @@ export async function getManagerEffectiveness(req, res, next) {
 export async function getAnalyticsHeatmap(req, res, next) {
   try {
     const cycleId = await getActiveCycleId()
-    const where = cycleId ? { goalSheet: { cycleId } } : {}
+    const where = cycleId ? { cycleId } : {}
 
     const sheets = await prisma.goalSheet.findMany({
       where,
       include: {
-        user: { select: { department: true } },
+        user: { select: { id: true, department: true } },
         goals: { include: { checkins: true } },
       },
     })
 
-    const departments = [...new Set(sheets.map((s) => s.user.department).filter(Boolean))]
+    if (!sheets || sheets.length === 0) {
+      return sendSuccess(res, { departments: [], quarters: QUARTERS, data: {} })
+    }
+
+    const departments = [...new Set(sheets.map((s) => s.user?.department).filter(Boolean))]
     const heatmapData = {}
 
     for (const dept of departments) {
       heatmapData[dept] = {}
       for (const quarter of QUARTERS) {
-        const deptSheets = sheets.filter((s) => s.user.department === dept)
+        const deptSheets = sheets.filter((s) => s.user?.department === dept)
         let totalGoals = 0
         let completedGoals = 0
         let totalScore = 0
         let scoreCount = 0
 
         for (const sheet of deptSheets) {
-          for (const goal of sheet.goals) {
+          for (const goal of sheet.goals || []) {
             totalGoals++
-            const checkin = goal.checkins.find((c) => c.quarter === quarter)
+            const checkin = (goal.checkins || []).find((c) => c.quarter === quarter)
             if (checkin?.checkinCompleted) {
               completedGoals++
             }
@@ -604,20 +608,24 @@ export async function getAnalyticsHeatmap(req, res, next) {
 export async function getDepartmentPerformance(req, res, next) {
   try {
     const cycleId = await getActiveCycleId()
-    const where = cycleId ? { goalSheet: { cycleId } } : {}
+    const where = cycleId ? { cycleId } : {}
 
     const sheets = await prisma.goalSheet.findMany({
       where,
       include: {
-        user: { select: { department: true, reportingManager: { select: { name: true } } } },
+        user: { select: { id: true, department: true, reportingManager: { select: { name: true } } } },
         goals: { include: { checkins: true } },
       },
     })
 
+    if (!sheets || sheets.length === 0) {
+      return sendSuccess(res, [])
+    }
+
     const deptData = {}
 
     for (const sheet of sheets) {
-      const dept = sheet.user.department || 'Unassigned'
+      const dept = sheet.user?.department || 'Unassigned'
       if (!deptData[dept]) {
         deptData[dept] = {
           department: dept,
@@ -631,11 +639,11 @@ export async function getDepartmentPerformance(req, res, next) {
       }
 
       deptData[dept].employees.add(sheet.userId)
-      deptData[dept].totalGoals += sheet.goals.length
+      deptData[dept].totalGoals += sheet.goals?.length || 0
       deptData[dept].sheetStatus[sheet.status] = (deptData[dept].sheetStatus[sheet.status] || 0) + 1
 
-      for (const goal of sheet.goals) {
-        for (const checkin of goal.checkins) {
+      for (const goal of sheet.goals || []) {
+        for (const checkin of goal.checkins || []) {
           if (checkin.checkinCompleted) {
             deptData[dept].completedGoals++
           }
