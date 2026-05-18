@@ -130,9 +130,16 @@ VITE_FIREBASE_MEASUREMENT_ID=
 
 ### 1. Authentication & Authorization
 - Firebase Email/Password → ID token verification on every API call
+- Firebase Microsoft OAuth via Azure Entra ID (optional SSO)
 - Role-based: EMPLOYEE, MANAGER, ADMIN
 - `isActive=false` users blocked
 - Role routing: `/goals` → Employee, `/manager/team` → Manager, `/admin` → Admin
+
+**Supported sign-in methods:**
+| Method | Provider |
+|--------|----------|
+| Email/Password | Firebase built-in |
+| Microsoft SSO | Firebase + Azure Entra ID |
 
 ### 2. Goal Sheet (Employee)
 - Lifecycle: DRAFT → SUBMITTED → APPROVED/RETURNED → (unlock) → RETURNED → resubmit

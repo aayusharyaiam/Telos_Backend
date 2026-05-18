@@ -51,7 +51,7 @@ authenticate → authorize → validate → checkNotLocked → auditLogger → c
 
 - Node.js + Express
 - Prisma + Supabase Postgres
-- Firebase Admin SDK (auth)
+- Firebase Admin SDK (auth - email/password + Microsoft OAuth tokens)
 - Resend (email)
 - Zod (validation)
 - xlsx (export)
