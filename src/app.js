@@ -124,10 +124,19 @@ app.use('/api/v1/admin', adminRouter)
 app.use(notFoundHandler)
 app.use(errorHandler)
 
+import { createServer } from 'http'
+import { initializeSocket } from './config/socket.js'
+
 const port = process.env.PORT || 3000
-app.listen(port, () => {
+const httpServer = createServer(app)
+
+// Initialize Socket.IO
+initializeSocket(httpServer)
+
+httpServer.listen(port, () => {
   console.log(`Telos API running on port ${port}`)
   console.log(`Allowed CORS origins: ${allowedOrigins.join(', ')}`)
+  console.log(`🔌 Socket.IO realtime notifications enabled`)
 })
 
 if (process.env.ENABLE_ESCALATION_JOB === 'true') {

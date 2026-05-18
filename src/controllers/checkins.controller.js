@@ -5,6 +5,8 @@ import { sendNotificationEmail } from '../services/email.service.js'
 import { getCurrentWindowStatus } from '../utils/cycleHelper.js'
 import { ForbiddenError, NotFoundError, ValidationError } from '../utils/errors.js'
 import { sendSuccess } from '../utils/response.js'
+import { uploadEvidenceFile, isValidMimeType, isValidFileSize } from '../services/storage.service.js'
+import { isSupabaseEnabled } from '../config/supabaseStorage.js'
 
 const QUARTERS = new Set(['Q1', 'Q2', 'Q3', 'Q4'])
 const STATUSES = new Set(['NOT_STARTED', 'ON_TRACK', 'COMPLETED'])
@@ -352,22 +354,54 @@ export async function uploadEvidence(req, res, next) {
       throw new ValidationError('No file uploaded')
     }
 
-    const baseUrl = process.env.FRONTEND_URL || ''
-    const fileUrl = `/uploads/${req.file.filename}`
+    // Validate file type and size before upload
+    if (!isValidMimeType(req.file.mimetype)) {
+      throw new ValidationError('File type not allowed. Allowed: JPG, PNG, GIF, WEBP, PDF, DOC, DOCX, TXT')
+    }
+
+    if (!isValidFileSize(req.file.size)) {
+      throw new ValidationError('File too large. Maximum size is 10MB')
+    }
+
+    let evidenceUrl, evidenceFileName, evidenceFileType, evidenceFileSize
+
+    // Use Supabase if enabled, otherwise fallback to local uploads
+    if (isSupabaseEnabled()) {
+      try {
+        const uploadResult = await uploadEvidenceFile(req.file, req.user.id)
+        evidenceUrl = uploadResult.publicUrl
+        evidenceFileName = uploadResult.fileName
+        evidenceFileType = uploadResult.mimeType
+        evidenceFileSize = uploadResult.size
+      } catch (uploadError) {
+        console.error('Supabase upload failed, falling back to local:', uploadError.message)
+        // Fallback to local upload
+        evidenceUrl = `/uploads/${req.file.filename}`
+        evidenceFileName = req.file.originalname
+        evidenceFileType = req.file.mimetype
+        evidenceFileSize = req.file.size
+      }
+    } else {
+      // Local upload fallback
+      evidenceUrl = `/uploads/${req.file.filename}`
+      evidenceFileName = req.file.originalname
+      evidenceFileType = req.file.mimetype
+      evidenceFileSize = req.file.size
+    }
 
     const updated = await prisma.checkinRecord.update({
       where: { id: checkinId },
       data: {
-        evidenceUrl: fileUrl,
-        evidenceFileName: req.file.originalname,
-        evidenceFileType: req.file.mimetype,
-        evidenceFileSize: req.file.size,
+        evidenceUrl,
+        evidenceFileName,
+        evidenceFileType,
+        evidenceFileSize,
       },
     })
 
     return sendSuccess(res, {
       ...updated,
-      evidenceUrl: fileUrl,
+      evidenceUrl,
     })
   } catch (err) {
     return next(err)
